@@ -9,7 +9,7 @@ import json
 import time
 import asyncio
 from os import _exit
-import ccxt
+import ccxt.async as ccxt
 # TODO fix below
 try:
     from CryptoGoats.helpers import *
@@ -45,11 +45,18 @@ for id in ccxt.exchanges:  # list of exchanges id ['acx', bittrex'...]
         exchanges[id] = exchange(config[id])
 
 # Load all markets (pairs)
+# for id, exchange in exchanges.items(): # Py3: items() instead of iteritems()
+#     try:
+#         await exchange.load_markets(reload=True)
+#     except:
+#         pass
+
 for id, exchange in exchanges.items(): # Py3: items() instead of iteritems()
     try:
-        _ = exchange.load_markets(reload=True)
+        _ = asyncio.get_event_loop().run_until_complete(exchange.load_markets(reload=True))
     except:
         pass
+
 
 # Find arbitrable pairs (in more than 1 exchange)
 allSymbols = [symbol for _, exchange in exchanges.items() for symbol in exchange.symbols]
@@ -85,19 +92,9 @@ for pair in arbitrableSymbols:
             except KeyError:
                 exchangesBySymbol[pair] = [id]
 
-
-# Dictionary to store currency rates in BTC
-# Only works for XXX/BTC pairs
-Currencies = list()
-for pair in arbitrableSymbols:
-    Currencies.append(pair.split('/')[0])
-Currencies = list(set(Currencies))
-
-print("...loading BTC rates...")
-CurrenciesBitcoinRate = dict()
-for curr in Currencies:
-    CurrenciesBitcoinRate[curr] =\
-        exchanges['bittrex'].fetchTicker(curr + '/BTC')['ask']
+# Show portfolio
+# asyncio.get_event_loop().\
+#     run_until_complete(BTC_portfolio_balance(exchanges,arbitrableSymbols))
 
 ################################################################################
 # Arbitrage
@@ -107,7 +104,7 @@ for curr in Currencies:
 def load_prices():
     starttime = time.time()
     counter = 1
-    while True and counter < 2:
+    while True and counter < 4:
         asyncio.ensure_future(find_arbitrages(prices, exchanges, exchangesBySymbol))
         counter += 1
         yield from asyncio.sleep(15.0 - ((time.time() - starttime) % 15.0))

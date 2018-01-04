@@ -1,16 +1,9 @@
 import asyncio
-import ccxt
+import ccxt.async as ccxt
 import time
 import math
 import pandas as pd
-# try:
-#     from CryptoGoats.async_pd_load import CurrenciesBitcoinRate
-# except:
-#     pass
-# try:
-#     from async_pd_load import CurrenciesBitcoinRate
-# except:
-#     pass
+
 
 
 ################################################################################
@@ -21,7 +14,7 @@ async def load_order_book(exchange, pair):
     """ Add order_book to Pandas dataframe
     pair = 'ETH/BTC'
     """
-    orderbook = exchange.fetch_order_book(pair)
+    orderbook = await exchange.fetch_order_book(pair)
 
     row = [time.time(), exchange.id, pair, orderbook['timestamp'],\
      ';'.join(map(lambda x: "@".join([str(x[1]), str(x[0])]), orderbook['bids'][:5])),\
@@ -80,7 +73,6 @@ async def create_arb_trade(pair, amount, bb_exchange,
 async def find_arbitrages(df, exchanges, exchangesBySymbol):
     """ Cycles once through all pairs and exchanges and triggers arb trades
     """
-    print(df)
 
     for pair, _ in exchangesBySymbol.items():
         for id in exchangesBySymbol[pair]:
@@ -90,9 +82,6 @@ async def find_arbitrages(df, exchanges, exchangesBySymbol):
         # print biggest spread for pair
         bb_exchange, best_bid, best_bid_size,\
             ba_exchange, best_ask, best_ask_size, spread = get_spread(pair, df)
-
-        # Store BTC rate
-        # async_pd_load.CurrenciesBitcoinRate[pair.split("/")[0]] = best_bid
 
         print("Biggest % spread for ", pair, spread)
 
@@ -109,8 +98,11 @@ async def find_arbitrages(df, exchanges, exchangesBySymbol):
                 sell_price = math.floor(best_bid*0.999 * 1e5) / 1e5
                 buy_price = math.ceil(best_ask*1.001 * 1e5) / 1e5
 
-                if (exchanges[bb_exchange].fetch_balance()[pair.split("/")[0]]['total'] > arb_amount) and\
-                    (exchanges[ba_exchange].fetch_balance()[pair.split("/")[1]]['total'] > arb_amount * buy_price):
+                bb_exchange_balance = await exchanges[bb_exchange].fetch_balance()
+                ba_exchange_balance = await exchanges[ba_exchange].fetch_balance()
+
+                if (bb_exchange_balance[pair.split("/")[0]]['total'] > arb_amount) and\
+                    (ba_exchange_balance[pair.split("/")[1]]['total'] > arb_amount * buy_price):
 
                     # Round amount to 4 digits
                     arb_amount = round(arb_amount, 4)
@@ -124,10 +116,10 @@ async def find_arbitrages(df, exchanges, exchangesBySymbol):
                 else:
                     print("  Not enough funds")
                     print("  sell balance", bb_exchange, pair.split("/")[0],
-                          exchanges[bb_exchange].fetch_balance()[pair.split("/")[0]]['total'])
+                          bb_exchange_balance[pair.split("/")[0]]['total'])
                     print("  amount to sell", arb_amount)
                     print("  buy balance", ba_exchange, pair.split("/")[1],
-                          exchanges[bb_exchange].fetch_balance()[pair.split("/")[1]]['total'])
+                          ba_exchange_balance[pair.split("/")[1]]['total'])
                     print("  amount to buy", arb_amount * buy_price)
 
             else:
@@ -139,14 +131,28 @@ async def find_arbitrages(df, exchanges, exchangesBySymbol):
 # Portfolio Balance
 ################################################################################
 
-def BTC_portfolio_balance(exchanges, Currencies, CurrenciesBitcoinRate):
+async def BTC_portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
     """ Returns the value of the portfolio in BTC for all currencies in
     arbitrable pairs
     """
 
+    # Dictionary to store currency rates in BTC
+    # Only works for XXX/BTC pairs
+    Currencies = list()
+    for pair in arbitrableSymbols:
+        Currencies.append(pair.split('/')[0])
+    Currencies = list(set(Currencies))
+
+    if inBTC:
+        print("...loading BTC rates...")
+        CurrenciesBitcoinRate = dict()
+        for curr in Currencies:
+            CurrenciesBitcoinRate[curr] =\
+                await exchanges['bittrex'].fetchTicker(curr + '/BTC')
+
     BTC_value = 0
     for id, exchange in exchanges.items():
-        balance = exchange.fetch_balance()
+        balance = await exchange.fetch_balance()
         print("\n")
         print("Exchange:", id)
         print('BTC', balance['BTC']['total'])
@@ -154,9 +160,11 @@ def BTC_portfolio_balance(exchanges, Currencies, CurrenciesBitcoinRate):
         for curr in Currencies:
             try:
                 print(curr, balance[curr]['total'])
-                BTC_value +=\
-                (balance[curr]['total'] * CurrenciesBitcoinRate[curr])
+                if inBTC:
+                    BTC_value +=\
+                    (balance[curr]['total'] * CurrenciesBitcoinRate[curr]['ask'])
             except:
                 pass # currency not in exchange
 
-    print("Total portfolio balance: ", BTC_value, "(BTC)")
+    if inBTC:
+        print("Total portfolio balance: ", BTC_value, "(BTC)")
