@@ -70,14 +70,15 @@ async def find_arbitrage(df, pair, exchanges, exchangesBySymbol):
         ba_exchange, best_ask, best_ask_size, spread = get_spread(pair, df)
     logger.info("Biggest percent spread for %s: %s", pair, spread)
 
-    if spread > .4:
+    if spread > .2:
 
-        # 0.017 btc is 250 USD
+        # Min 0.01 ~ 160 USD
         min_arb_amount = 0.01 / best_bid
         # Minimal trade value on cex
         min_arb_amount = max(min_arb_amount, 0.1)
 
-        max_arb_amount = max(0.017 / best_bid, min_arb_amount)
+        # Max 0.07 ~ 1000 USD
+        max_arb_amount = max(0.01 / best_bid, min_arb_amount)
 
         # Check funds
         bb_balance = await exchanges[bb_exchange].fetch_balance()
@@ -123,9 +124,14 @@ async def find_arbitrage(df, pair, exchanges, exchangesBySymbol):
                 bb_balance_after = await exchanges[bb_exchange].fetch_balance()
                 ba_balance_after = await exchanges[ba_exchange].fetch_balance()
 
-                portfolio_up = await is_higher(pair.split("/")[0], pair.split("/")[1],\
-                                         bb_balance, ba_balance,\
-                                         bb_balance_after, ba_balance_after)
+                portfolio_up = False
+                portfolio_counter = 0
+                while portfolio_up == False and portfolio_counter < 3:
+                    portfolio_up = await is_higher(pair.split("/")[0], pair.split("/")[1],\
+                                             bb_balance, ba_balance,\
+                                             bb_balance_after, ba_balance_after)
+                    time.sleep(5)
+                    portfolio_counter += 1
                 return(portfolio_up)
             else:
                 logger.info("  Not enough funds")

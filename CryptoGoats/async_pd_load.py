@@ -164,7 +164,6 @@ loop = asyncio.get_event_loop()
 loop.run_until_complete(task)
 
 
-
 # Test transfer
 # transfer = asyncio.get_event_loop().\
 #     run_until_complete(exchanges['bittrex'].withdraw('XRP', 10, 'rE1sdh25BJQ3qFwngiTBwaq3zPGGYcrjp1', params = {'tag': 28577}))
