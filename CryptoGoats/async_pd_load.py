@@ -22,6 +22,40 @@ except:
 import psycopg2
 import pandas as pd
 
+import datetime
+import logging
+
+################################################################################
+# Logging
+################################################################################
+
+logPath = "./CryptoGoats/Logs"
+time = '{:%Y-%m-%d_%H-%M-%s}'.format(datetime.datetime.now())
+fileName = time + "_cryptogoats"
+
+rootLogger = logging.getLogger(__name__)
+
+# add timestamp to each line
+logFormatter = logging.Formatter('%(asctime)-2s: %(levelname)-2s %(message)s',\
+                              datefmt='%H:%M')
+
+fileHandler = logging.FileHandler("{0}/{1}.log".format(logPath, fileName))
+fileHandler.setFormatter(logFormatter)
+fileHandler.setLevel(level=logging.DEBUG)  # doesn't work - prints info too
+rootLogger.addHandler(fileHandler)
+logger.addHandler(fileHandler) # helpers module logger
+
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(logFormatter)
+consoleHandler.setLevel(level=logging.INFO)
+rootLogger.addHandler(consoleHandler)
+
+
+rootLogger.setLevel(level=logging.DEBUG)
+rootLogger.info("Starting Log")
+logging.info("Starting Log2")
+
+
 ################################################################################
 # Initialization
 ################################################################################
@@ -59,10 +93,9 @@ for id, exchange in exchanges.items(): # Py3: items() instead of iteritems()
 
 # Remove exchanges that couldn't be loaded
 for id in exchange_to_remove:
-    print("Coundn't load", id)
-    print("\n")
+    rootLogger.info("Coundn't load %s", id)
+    # print("\n")
     del exchanges[id]
-
 
 # Find arbitrable pairs (in more than 1 exchange)
 allSymbols = [symbol for _, exchange in exchanges.items() for symbol in exchange.symbols]
@@ -104,11 +137,9 @@ for pair in arbitrableSymbols:
 
 
 # Show portfolio
-print("Printing portfolio...")
+rootLogger.info("Printing portfolio...")
 portfolio = asyncio.get_event_loop().\
     run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
-print("\n")
-
 
 @asyncio.coroutine
 def load_prices():
@@ -121,56 +152,34 @@ def load_prices():
             portfolio_up = yield from find_arbitrage(prices, pair, exchanges, exchangesBySymbol)
             if not portfolio_up:
                 print("\n")
-                print("Interrupting")
+                rootLogger.debug("Interrupting")
                 break
             counter += 1
             pair_counter = (pair_counter + 1) % (len(arbitrableSymbols))
         except KeyboardInterrupt:
-            print("exiting program (print portfolio here)")
+            rootLogger.info("exiting program (print portfolio here)")
 
 task = asyncio.Task(load_prices())
 loop = asyncio.get_event_loop()
 loop.run_until_complete(task)
 
-# logging
-# import logging
-#
-# # set up logging to file - see previous section for more details
-# logging.basicConfig(level=logging.DEBUG,
-#                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
-#                     datefmt='%m-%d %H:%M',
-#                     filename='./CryptoGoats/Logs/cryptogoats.log',
-#                     filemode='w')
-#
-# filelogger3 = logging.getLogger('crypto.file1')
-# filelogger3.info("test info on filelogger3")
-#
-# # define a Handler which writes INFO messages or higher to the sys.stderr
-# console = logging.StreamHandler()
-# console.setLevel(logging.INFO)
-# # set a format which is simpler for console use
-# formatter = logging.Formatter('%(asctime)-12s: %(levelname)-8s %(message)s',\
-#                               datefmt='%m-%d %H:%M')
-# # tell the handler to use this format
-# console.setFormatter(formatter)
-# # add the handler to the root logger
-# logging.getLogger('').addHandler(console)
-# logging.getLogger('').removeHandler(console)
-#
-#
-# logging.info("test info")
-# logging.debug("test debug")
-#
-# filelogger = logging.getLogger('crypto.file1')
-# filelogger.info("test infor on filelogger")
+
 
 # Test transfer
 # transfer = asyncio.get_event_loop().\
-#     run_until_complete(exchanges['bittrex'].withdraw('XRP', 2, 'rE1sdh25BJQ3qFwngiTBwaq3zPGGYcrjp1', params = {'tag': 28577}))
+#     run_until_complete(exchanges['bittrex'].withdraw('XRP', 10, 'rE1sdh25BJQ3qFwngiTBwaq3zPGGYcrjp1', params = {'tag': 28577}))
 
+# transfer
+
+# Check orders
+# orders_cex = asyncio.get_event_loop().\
+#     run_until_complete( exchanges['cex'].fetchOrders())
+#
 # orders = asyncio.get_event_loop().\
 #     run_until_complete( exchanges['bittrex'].fetchOrders())
 #
+# orders
+
 # balb = asyncio.get_event_loop().\
 #     run_until_complete( exchanges['bittrex'].fetch_balance())
 # balb
