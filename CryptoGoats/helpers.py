@@ -7,7 +7,7 @@ from collections import defaultdict
 
 import logging
 logger = logging.getLogger(__name__)
-logger.setLevel(level=logging.DEBUG)
+# logger.setLevel(level=logging.DEBUG)
 
 
 
@@ -85,8 +85,13 @@ async def find_arbitrage(df, pair, exchanges, exchangesBySymbol):
         ba_balance = await exchanges[ba_exchange].fetch_balance()
         arb_amount = min(max_arb_amount, best_bid_size, best_ask_size)
 
-        sell_price = math.floor(best_bid*0.999 * 1e5) / 1e5
-        buy_price = math.ceil(best_ask*1.001 * 1e5) / 1e5
+        # Rounding for gdax
+        if bb_exchange == 'gdax' or ba_exchange == 'gdax':
+            sell_price = math.floor(best_bid*0.999 * 1e5) / 1e5
+            buy_price = math.ceil(best_ask*1.001 * 1e5) / 1e5
+        else:
+            sell_price = math.floor(best_bid*0.999 * 1e8) / 1e8
+            buy_price = math.ceil(best_ask*1.001 * 1e8) / 1e8
 
         # reduce arb_amount to what funds allow
         arb_amount = min(bb_balance[pair.split("/")[0]]['total'],\
@@ -212,7 +217,7 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
     # Print totals by Currencies
     logger.info("Currency totals")
     for curr, total in portfolio.items():
-        print(curr, total)
+        logger.info("%s %f", curr, total)
 
     if inBTC:
         for curr, total in portfolio.items():

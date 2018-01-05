@@ -36,20 +36,23 @@ fileName = time + "_cryptogoats"
 rootLogger = logging.getLogger(__name__)
 
 # add timestamp to each line
-logFormatter = logging.Formatter('%(asctime)-2s: %(levelname)-2s %(message)s',\
+logFormatter = logging.Formatter('%(asctime)-2s: %(levelname)-12s %(message)s',\
                               datefmt='%H:%M')
 
 fileHandler = logging.FileHandler("{0}/{1}.log".format(logPath, fileName))
 fileHandler.setFormatter(logFormatter)
 fileHandler.setLevel(level=logging.DEBUG)  # doesn't work - prints info too
 rootLogger.addHandler(fileHandler)
-logger.addHandler(fileHandler) # helpers module logger
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
 consoleHandler.setLevel(level=logging.INFO)
 rootLogger.addHandler(consoleHandler)
 
+# helpers module logger
+logger.setLevel(level=logging.DEBUG)
+logger.addHandler(fileHandler)
+# logger.addHandler(consoleHandler)
 
 rootLogger.setLevel(level=logging.DEBUG)
 rootLogger.info("Starting Log")
