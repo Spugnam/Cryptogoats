@@ -1,4 +1,3 @@
-
 import os
 import sys
 # root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -10,7 +9,7 @@ import time
 import asyncio
 from os import _exit
 import ccxt.async as ccxt
-# to work with jupyter or from console
+# TODO fix below
 try:
     from CryptoGoats.helpers import *
 except:
@@ -43,6 +42,7 @@ for id in ccxt.exchanges:  # list of exchanges id ['acx', bittrex'...]
         exchange = getattr(ccxt, id) # exchange becomes function bittrex()
         exchanges[id] = exchange(config[id])
 
+
 # Load all markets (pairs)
 # for id, exchange in exchanges.items(): # Py3: items() instead of iteritems()
 #     try:
@@ -69,6 +69,12 @@ allSymbols = [symbol for _, exchange in exchanges.items() for symbol in exchange
 uniqueSymbols = list(set(allSymbols))
 # filter out symbols that are not present on at least two exchanges
 arbitrableSymbols = sorted([symbol for symbol in uniqueSymbols if allSymbols.count(symbol) > 1])
+
+#####
+# remove pair non in cex
+arbitrableSymbols.remove('LTC/BTC')
+
+
 
 # Remove FIAT es
 # TODO make option in program
@@ -98,16 +104,17 @@ for pair in arbitrableSymbols:
             except KeyError:
                 exchangesBySymbol[pair] = [id]
 
+
 ################################################################################
 # Arbitrage
 ################################################################################
 
 
-# Show portfolio
-print("Printing portfolio...")
-portfolio = asyncio.get_event_loop().\
-    run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
-print("\n")
+# # Show portfolio
+# print("Printing portfolio...")
+# portfolio = asyncio.get_event_loop().\
+#     run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
+# print("\n")
 
 
 @asyncio.coroutine
@@ -115,54 +122,23 @@ def load_prices():
     # starttime = time.time()
     counter = 1
     pair_counter = 0
-    while True and counter < 500:
-        try:
-            pair = arbitrableSymbols[pair_counter]
-            portfolio_up = yield from find_arbitrage(prices, pair, exchanges, exchangesBySymbol)
-            if not portfolio_up:
-                print("\n")
-                print("Interrupting")
-                break
-            counter += 1
-            pair_counter = (pair_counter + 1) % (len(arbitrableSymbols))
-        except KeyboardInterrupt:
-            print("exiting program (print portfolio here)")
+    while True and counter < 200:
+        pair = arbitrableSymbols[pair_counter]
+        # refill cex
+        portfolio_up = yield from find_arbitrage_refill(prices, pair, exchanges, exchangesBySymbol, 'cex')
+        if not portfolio_up:
+            print("\n")
+            print("Interrupting")
+            break
+        counter += 1
+        pair_counter = (pair_counter + 1) % (len(arbitrableSymbols))
+        if pair_counter == 0:
+            time.sleep(5)
 
 task = asyncio.Task(load_prices())
 loop = asyncio.get_event_loop()
 loop.run_until_complete(task)
 
-# logging
-# import logging
-#
-# # set up logging to file - see previous section for more details
-# logging.basicConfig(level=logging.DEBUG,
-#                     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
-#                     datefmt='%m-%d %H:%M',
-#                     filename='./CryptoGoats/Logs/cryptogoats.log',
-#                     filemode='w')
-#
-# filelogger3 = logging.getLogger('crypto.file1')
-# filelogger3.info("test info on filelogger3")
-#
-# # define a Handler which writes INFO messages or higher to the sys.stderr
-# console = logging.StreamHandler()
-# console.setLevel(logging.INFO)
-# # set a format which is simpler for console use
-# formatter = logging.Formatter('%(asctime)-12s: %(levelname)-8s %(message)s',\
-#                               datefmt='%m-%d %H:%M')
-# # tell the handler to use this format
-# console.setFormatter(formatter)
-# # add the handler to the root logger
-# logging.getLogger('').addHandler(console)
-# logging.getLogger('').removeHandler(console)
-#
-#
-# logging.info("test info")
-# logging.debug("test debug")
-#
-# filelogger = logging.getLogger('crypto.file1')
-# filelogger.info("test infor on filelogger")
 
 # Test transfer
 # transfer = asyncio.get_event_loop().\
