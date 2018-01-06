@@ -7,8 +7,7 @@ from collections import defaultdict
 
 import logging
 logger = logging.getLogger(__name__)
-# logger.setLevel(level=logging.DEBUG)
-
+logger.propagate = False # only use the output from rootLogger
 
 
 ################################################################################
@@ -70,7 +69,7 @@ async def find_arbitrage(df, pair, exchanges, exchangesBySymbol):
         ba_exchange, best_ask, best_ask_size, spread = get_spread(pair, df)
     logger.info("Biggest percent spread for %s: %s", pair, spread)
 
-    if spread > .2:
+    if spread > 5:
 
         # Min 0.01 ~ 160 USD
         min_arb_amount = 0.01 / best_bid
@@ -85,13 +84,11 @@ async def find_arbitrage(df, pair, exchanges, exchangesBySymbol):
         ba_balance = await exchanges[ba_exchange].fetch_balance()
         arb_amount = min(max_arb_amount, best_bid_size, best_ask_size)
 
-        # Rounding for gdax
-        if bb_exchange == 'gdax' or ba_exchange == 'gdax':
-            sell_price = math.floor(best_bid*0.999 * 1e5) / 1e5
-            buy_price = math.ceil(best_ask*1.001 * 1e5) / 1e5
-        else:
-            sell_price = math.floor(best_bid*0.999 * 1e8) / 1e8
-            buy_price = math.ceil(best_ask*1.001 * 1e8) / 1e8
+        # Rounding below needed for gdax
+        # Will also loosen the limit and trigger more executions
+        sell_price = math.floor(best_bid*0.999 * 1e5) / 1e5
+        buy_price = math.ceil(best_ask*1.001 * 1e5) / 1e5
+
 
         # reduce arb_amount to what funds allow
         arb_amount = min(bb_balance[pair.split("/")[0]]['total'],\
@@ -202,8 +199,8 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
     BTC_value = 0
     for id, exchange in exchanges.items():
         balance = await exchange.fetch_balance()
+        logging.info('\n')
         logger.info("Exchange: %s", id)
-
         for curr in Currencies:
             try:
                 logger.info("%s %f", curr, balance[curr]['total'])
@@ -215,6 +212,7 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
                 pass # currency not in exchange
 
     # Print totals by Currencies
+    logging.info('\n')
     logger.info("Currency totals")
     for curr, total in portfolio.items():
         logger.info("%s %f", curr, total)
@@ -265,7 +263,7 @@ async def find_arbitrage_refill(df, pair, exchanges, exchangesBySymbol, exchange
         ba_exchange, best_ask, best_ask_size, spread = get_spread_refill(pair, df, exchange_refill)
     print("Biggest % spread for ", pair, spread, "sell at", bb_exchange, "buy at", ba_exchange)
 
-    if spread > 5:
+    if spread > 1.5:
 
         # 0.017 btc is 250 USD
         min_arb_amount = 0.017 / best_bid
@@ -291,8 +289,8 @@ async def find_arbitrage_refill(df, pair, exchanges, exchangesBySymbol, exchange
             if (bb_balance[pair.split("/")[0]]['total'] > arb_amount) and\
                 (ba_balance[pair.split("/")[1]]['total'] > arb_amount * buy_price):
 
-                # Round amount to 4 digits
-                arb_amount = round(arb_amount, 4)
+                # Round amount to 4 digits (prevent "amount too precise")
+                arb_amount = math.floor(arb_amount *1e4) / 1e4
                 print("***** arbitrage *****")
                 # take
                 print("Amount in USD",\
@@ -308,12 +306,18 @@ async def find_arbitrage_refill(df, pair, exchanges, exchangesBySymbol, exchange
                 print("\n")
 
                 # Check portfolio went up
-                bb_balance_after = await exchanges[bb_exchange].fetch_balance()
-                ba_balance_after = await exchanges[ba_exchange].fetch_balance()
+                portfolio_up = False
+                portfolio_counter = 0
 
-                portfolio_up = await is_higher(pair.split("/")[0], pair.split("/")[1],\
-                                         bb_balance, ba_balance,\
-                                         bb_balance_after, ba_balance_after)
+                while portfolio_up == False and portfolio_counter < 3:
+                    bb_balance_after = await exchanges[bb_exchange].fetch_balance()
+                    ba_balance_after = await exchanges[ba_exchange].fetch_balance()
+
+                    portfolio_up = await is_higher(pair.split("/")[0], pair.split("/")[1],\
+                                             bb_balance, ba_balance,\
+                                             bb_balance_after, ba_balance_after)
+                    time.sleep(5)
+                    portfolio_counter += 1
                 return(portfolio_up)
             else:
                 print("  Not enough funds")

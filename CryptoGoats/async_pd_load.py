@@ -1,11 +1,13 @@
 
 import os
 import sys
+import logging
 # root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # sys.path.append(root)
 
 import math
 import json
+import datetime
 import time
 import asyncio
 from os import _exit
@@ -22,11 +24,9 @@ except:
 import psycopg2
 import pandas as pd
 
-import datetime
-import logging
 
 ################################################################################
-# Logging
+# Logger initialization
 ################################################################################
 
 logPath = "./CryptoGoats/Logs"
@@ -36,31 +36,31 @@ fileName = time + "_cryptogoats"
 rootLogger = logging.getLogger(__name__)
 
 # add timestamp to each line
-logFormatter = logging.Formatter('%(asctime)-2s: %(levelname)-12s %(message)s',\
-                              datefmt='%H:%M')
+logFormatter =\
+    logging.Formatter('%(asctime)-2s: %(name)-2s %(levelname)-12s %(message)s',\
+                      datefmt='%H:%M')
 
 fileHandler = logging.FileHandler("{0}/{1}.log".format(logPath, fileName))
 fileHandler.setFormatter(logFormatter)
-fileHandler.setLevel(level=logging.DEBUG)  # doesn't work - prints info too
+fileHandler.setLevel(level=logging.DEBUG)
 rootLogger.addHandler(fileHandler)
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
-consoleHandler.setLevel(level=logging.INFO)
+consoleHandler.setLevel(level=logging.DEBUG)
 rootLogger.addHandler(consoleHandler)
 
 # helpers module logger
 logger.setLevel(level=logging.DEBUG)
 logger.addHandler(fileHandler)
-# logger.addHandler(consoleHandler)
+logger.addHandler(consoleHandler)
 
 rootLogger.setLevel(level=logging.DEBUG)
-rootLogger.info("Starting Log")
-logging.info("Starting Log2")
+rootLogger.info("Created log file: %s", fileName)
 
 
 ################################################################################
-# Initialization
+# Pairs/ Exchanges Initialization
 ################################################################################
 
 # create Pandas df

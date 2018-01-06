@@ -21,6 +21,15 @@ except:
 import psycopg2
 import pandas as pd
 
+import datetime
+import logging
+
+logPath = "./CryptoGoats/Logs"
+time = '{:%Y-%m-%d_%H-%M-%s}'.format(datetime.datetime.now())
+fileName = time + "_cryptogoats"
+logging.basicConfig(filename="{0}/{1}.log".format(logPath, fileName), level=logging.INFO)
+logging.info('Started the test')
+
 ################################################################################
 # Initialization
 ################################################################################
@@ -110,11 +119,11 @@ for pair in arbitrableSymbols:
 ################################################################################
 
 
-# # Show portfolio
-# print("Printing portfolio...")
-# portfolio = asyncio.get_event_loop().\
-#     run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
-# print("\n")
+# Show portfolio
+print("Printing portfolio...")
+portfolio = asyncio.get_event_loop().\
+    run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
+print("\n")
 
 
 @asyncio.coroutine
