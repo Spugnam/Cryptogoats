@@ -177,7 +177,8 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
     """ Returns the value of the portfolio in BTC for all currencies in
     arbitrable pairs
     """
-
+    BOLD = '\033[1m'
+    END_BOLD = '\033[0m'
     portfolio = defaultdict()
 
     # Dictionary to store currency rates in BTC
@@ -199,8 +200,7 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
     BTC_value = 0
     for id, exchange in exchanges.items():
         balance = await exchange.fetch_balance()
-        logging.info('\n')
-        logger.info("Exchange: %s", id)
+        logger.info(BOLD + "Exchange: %s" + END_BOLD, id)
         for curr in Currencies:
             try:
                 logger.info("%s %f", curr, balance[curr]['total'])
@@ -212,8 +212,7 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
                 pass # currency not in exchange
 
     # Print totals by Currencies
-    logging.info('\n')
-    logger.info("Currency totals")
+    logger.info(BOLD + "Currency totals" + END_BOLD)
     for curr, total in portfolio.items():
         logger.info("%s %f", curr, total)
 

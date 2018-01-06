@@ -154,7 +154,7 @@ def load_prices():
             pair = arbitrableSymbols[pair_counter]
             portfolio_up = yield from find_arbitrage(prices, pair, exchanges, exchangesBySymbol)
             if not portfolio_up:
-                print("\n")
+                rootLogger.info(" ")
                 rootLogger.debug("Interrupting")
                 break
             counter += 1
