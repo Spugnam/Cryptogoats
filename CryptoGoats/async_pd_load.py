@@ -24,6 +24,19 @@ except:
 import psycopg2
 import pandas as pd
 
+################################################################################
+# Logger initialization
+################################################################################
+
+sellExchanges = [] # ['binance', 'bittrex', 'cex']
+buyExchanges = [] # ['binance', 'bittrex', 'cex']
+# allowedPairs = ['START/BTC', 'STORJ/BTC', 'STORJ/ETH', 'SWT/BTC', 'SYNX/BTC', 'SYS/BTC', 'TX/BTC', 'VIA/BTC', 'VTC/BTC', 'WAVES/BTC', 'WAVES/ETH', 'XEM/BTC', 'XEM/ETH', 'XMG/BTC', 'XRP/BTC', 'XVG/BTC', 'ZEC/BTC', 'ZEC/ETH']
+allowedPairs = [] # ['ABY/BTC', 'ADT/BTC']
+excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
+arbitrage = False
+minSpread = 5
+min_arb_amount_BTC = .01
+max_arb_amount_BTC = .07
 
 ################################################################################
 # Logger initialization
@@ -42,13 +55,12 @@ logFormatter =\
 
 fileHandler = logging.FileHandler("{0}/{1}.log".format(logPath, fileName))
 fileHandler.setFormatter(logFormatter)
-fileHandler.setLevel(level=logging.DEBUG)
+fileHandler.setLevel(level=logging.DEBUG) # log DEBUG to file only
 rootLogger.addHandler(fileHandler)
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
-consoleHandler.setLevel(level=logging.INFO
-                        )
+consoleHandler.setLevel(level=logging.INFO)
 rootLogger.addHandler(consoleHandler)
 
 # helpers module logger
@@ -72,6 +84,7 @@ prices = pd.DataFrame(columns=['timestamp', 'exchange', 'pair',
                                'asks', 'low_ask', 'low_ask_size', 'volume'])
 
 # Create and connect to all configured exchanges
+rootLogger.info("...loading exchanges...")
 with open('./CryptoGoats/config_exchanges.json') as f:
     config = json.load(f)
 
@@ -81,46 +94,43 @@ for id in ccxt.exchanges:  # list of exchanges id ['acx', bittrex'...]
         exchange = getattr(ccxt, id) # exchange becomes function bittrex()
         exchanges[id] = exchange(config[id])
 
-# Load all markets (pairs)
-# for id, exchange in exchanges.items(): # Py3: items() instead of iteritems()
-#     try:
-#         await exchange.load_markets(reload=True)
-#     except:
-#         pass
-
-exchange_to_remove = list()
+# Remove exchanges that couldn't be loaded
+notLoaded = list()
 for id, exchange in exchanges.items(): # Py3: items() instead of iteritems()
     try:
         _ = asyncio.get_event_loop().run_until_complete(exchange.load_markets(reload=True))
     except:
-        exchange_to_remove.append(id)
+        notLoaded.append(id)
 
-# Remove exchanges that couldn't be loaded
-for id in exchange_to_remove:
+for id in notLoaded:
     rootLogger.info("Coundn't load %s", id)
-    # print("\n")
     del exchanges[id]
 
 # Find arbitrable pairs (in more than 1 exchange)
+# allSymbols = [symbol for _, exchange in exchanges.items() for symbol in exchange.symbols]
+rootLogger.info("...loading symbols...")
 allSymbols = [symbol for _, exchange in exchanges.items() for symbol in exchange.symbols]
-uniqueSymbols = list(set(allSymbols))
+if allowedPairs != []:
+    uniqueSymbols = list(set(allSymbols).intersection(set(allowedPairs)))
+else:
+    uniqueSymbols = list(set(allSymbols))
+
 # filter out symbols that are not present on at least two exchanges
 arbitrableSymbols = sorted([symbol for symbol in uniqueSymbols if allSymbols.count(symbol) > 1])
 
 # Remove FIAT es
 # TODO make option in program
-FiatCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
-arbitrableSymbolsWithoutFiat = []
+filteredSymbols = []
 
 for symbol in arbitrableSymbols:
     hasFiat = 0
-    for fiatcurrency in FiatCurrencies:
-        if symbol.find(fiatcurrency) != -1:
+    for currency in excludedCurrencies:
+        if symbol.find(currency) != -1:
             hasFiat = 1
     if hasFiat == 0:
-        arbitrableSymbolsWithoutFiat.append(symbol)
+        filteredSymbols.append(symbol)
 
-arbitrableSymbols = arbitrableSymbolsWithoutFiat
+arbitrableSymbols = filteredSymbols
 
 # Create dictionary of exchanges available for each pair
 # Used in loop to find arbitrage trades by pair
@@ -135,8 +145,22 @@ for pair in arbitrableSymbols:
             except KeyError:
                 exchangesBySymbol[pair] = [id]
 
-rootLogger.info("***Arbitrable Symbols(%d)***", len(arbitrableSymbols))
+rootLogger.info(style.HEADER + "***Arbitrable Symbols(%d)***" + style.END,\
+                len(arbitrableSymbols))
 rootLogger.info("%s", arbitrableSymbols)
+
+# Update allowed buy/ sell exchanges and pairs
+if sellExchanges == []:
+    for id, _ in exchanges.items():
+        sellExchanges.append(id)
+if buyExchanges == []:
+    for id, _ in exchanges.items():
+        buyExchanges.append(id)
+rootLogger.info(style.OKGREEN + "Allowed exchanges for sell orders %s"\
+                + style.END, sellExchanges)
+rootLogger.info(style.OKGREEN + "Allowed exchanges for buy orders %s"\
+                + style.END, buyExchanges)
+
 
 ################################################################################
 # Arbitrage
@@ -148,15 +172,26 @@ rootLogger.info("%s", arbitrableSymbols)
 # portfolio = asyncio.get_event_loop().\
 #     run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
 
+
 @asyncio.coroutine
-def load_prices():
+def main():
     # starttime = time.time()
     counter = 1
     pair_counter = 0
     while True and counter < 500:
         try:
             pair = arbitrableSymbols[pair_counter]
-            portfolio_up = yield from find_arbitrage(prices, pair, exchanges, exchangesBySymbol)
+            portfolio_up = yield from pair_arbitrage(prices,\
+                                                     pair,\
+                                                     exchanges,\
+                                                     exchangesBySymbol,\
+                                                     sellExchanges,\
+                                                     buyExchanges,\
+                                                     arbitrage=arbitrage,\
+                                                     minSpread=minSpread,\
+                                                     min_arb_amount_BTC = min_arb_amount_BTC,\
+                                                     max_arb_amount_BTC = max_arb_amount_BTC
+                                                     )
             if not portfolio_up:
                 rootLogger.info(" ")
                 rootLogger.debug("Interrupting")
@@ -166,7 +201,7 @@ def load_prices():
         except KeyboardInterrupt:
             rootLogger.info("exiting program (print portfolio here)")
 
-task = asyncio.Task(load_prices())
+task = asyncio.Task(main())
 loop = asyncio.get_event_loop()
 loop.run_until_complete(task)
 

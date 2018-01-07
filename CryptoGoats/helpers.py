@@ -2,6 +2,7 @@ import asyncio
 import ccxt.async as ccxt
 import time
 import math
+import numbers
 import pandas as pd
 from collections import defaultdict
 
@@ -9,6 +10,15 @@ import logging
 logger = logging.getLogger(__name__)
 logger.propagate = False # only use the output from rootLogger
 
+class style:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    END = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 ################################################################################
 # OrderBook
@@ -35,27 +45,56 @@ async def load_order_book(exchange, pair):
 # Arbitrage
 ################################################################################
 
-def get_spread(pair, df):
+def get_spread(pair, df, sellExchanges, buyExchanges):
     """ Identify spread for a pair and returns data for arbitrage trade
     """
-    best_bid = df.loc[df['pair'] == pair, ['high_bid']].unstack().max()
-    bb_idx = df.loc[df['pair'] == pair, ['high_bid']].idxmax()
+    best_bid = df.loc[(df['pair'] == pair) &\
+                      (df['exchange'].isin(sellExchanges)),\
+                      ['high_bid']].unstack().max()
+    try:
+        assert isinstance(best_bid, numbers.Number)
+    except AssertionError:
+        logger.debug("%s", df.loc[df['pair']])
+
+    try:
+        bb_idx = df.loc[(df['pair'] == pair) &\
+                      (df['exchange'].isin(sellExchanges)), ['high_bid']].idxmax()
+    except Exception:
+        logger.error("Catching %s", df.loc[df['pair'] == pair], exc_info=True)
     best_bid_size = df.loc[bb_idx, 'high_bid_size'].values[0]
     bb_exchange = df.loc[bb_idx, 'exchange'].values[0]
 
-    best_ask = df.loc[df['pair'] == pair, ['low_ask']].unstack().min()
-    ba_idx = df.loc[df['pair'] == pair, ['low_ask']].idxmin()
+    best_ask = df.loc[(df['pair'] == pair) &\
+                      (df['exchange'].isin(buyExchanges)),\
+                      ['low_ask']].unstack().min()
+    # try:
+    ba_idx = df.loc[(df['pair'] == pair) &\
+                      (df['exchange'].isin(buyExchanges)), ['low_ask']].idxmin()
+    # except Exception:
+    #     logger.error("%s", df.loc[df['pair'] == pair], exc_info=True)
     best_ask_size = df.loc[ba_idx, 'low_ask_size'].values[0]
     ba_exchange = df.loc[ba_idx, 'exchange'].values[0]
 
     spread = 100 * (best_bid - best_ask) / best_bid
 
+    logger.debug("best bid: %f, best bid size: %f (%s)",\
+                 best_bid, best_bid_size, bb_exchange)
+    logger.debug("best ask: %f, best ask size: %f (%s)",\
+                 best_ask, best_ask_size, ba_exchange)
+
     return(bb_exchange, best_bid, best_bid_size,\
            ba_exchange, best_ask, best_ask_size, spread)
 
 
-async def find_arbitrage(df, pair, exchanges, exchangesBySymbol):
-    """ Cycles once through all pairs and exchanges and triggers arb trades
+async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
+                         sellExchanges, buyExchanges,\
+                         arbitrage=False, minSpread=5,\
+                         min_arb_amount_BTC=0.01, max_arb_amount_BTC=.01):
+    """ Calculate best spread for a pair at available exchanges and triggers arbitrage
+    Returns True if
+        -nothing was done
+        or
+        -portfolio is not down (allowing for rounding)
     """
 
     # Load orderbooks at all exchanges containing pair
@@ -66,27 +105,35 @@ async def find_arbitrage(df, pair, exchanges, exchangesBySymbol):
             df = df.append(pd.DataFrame([row], columns=df.columns)\
                             , ignore_index=True)
         except:
-            pass # if order book empty don't try to add row
+            pass # e.g. order book empty
 
-    # print biggest spread for pair
+    # Find biggest spread for pair
     try:
         bb_exchange, best_bid, best_bid_size,\
-            ba_exchange, best_ask, best_ask_size, spread = get_spread(pair, df)
-        logger.info("Biggest percent spread for %s: %s (sell %s, buy %s)",\
-                    pair, spread, bb_exchange, ba_exchange)
-    except:
-        logger.info("No spread calculated for %s at %s", pair, id)
+            ba_exchange, best_ask, best_ask_size, spread =\
+                get_spread(pair, df, sellExchanges, buyExchanges)
+
+        spreadString = "Biggest percent spread for %s: %s (sell %s, buy %s)"\
+                % (pair, spread, bb_exchange, ba_exchange)
+        if spread > minSpread:
+            logger.info(style.BOLD + spreadString + style.END)
+        else:
+            logger.info(spreadString)
+
+    except Exception:
+        logger.error("No spread calculated for %s at %s", pair, id, exc_info=True)
+        logger.debug("%s", df.loc[df['pair'] == pair], exc_info=True)
         return(True) # nothing was done
 
-    if False: # spread > 100:
+    if arbitrage and spread > minSpread:
 
         # Min 0.01 ~ 160 USD
-        min_arb_amount = 0.01 / best_bid
+        min_arb_amount = min_arb_amount_BTC / best_bid
         # Minimal trade value on cex
         min_arb_amount = max(min_arb_amount, 0.1)
 
         # Max 0.07 ~ 1000 USD
-        max_arb_amount = max(0.01 / best_bid, min_arb_amount)
+        max_arb_amount = max(max_arb_amount_BTC / best_bid, min_arb_amount)
 
         # Check funds
         bb_balance = await exchanges[bb_exchange].fetch_balance()
@@ -186,8 +233,8 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
     """ Returns the value of the portfolio in BTC for all currencies in
     arbitrable pairs
     """
-    BOLD = '\033[1m'
-    END_BOLD = '\033[0m'
+    # BOLD = '\033[1m'
+    # END_BOLD = '\033[0m'
     portfolio = defaultdict()
 
     # Dictionary to store currency rates in BTC
@@ -209,7 +256,7 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
     BTC_value = 0
     for id, exchange in exchanges.items():
         balance = await exchange.fetch_balance()
-        logger.info(BOLD + "Exchange: %s" + END_BOLD, id)
+        logger.info(style.BOLD + "Exchange: %s" + style.END_BOLD, id)
         for curr in Currencies:
             try:
                 logger.info("%s %f", curr, balance[curr]['total'])
@@ -234,111 +281,111 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
         logger.info("Total portfolio balance: %f BTC", BTC_value)
     return(portfolio)
 
-################################################################################
-# Refill cex with BTC
-################################################################################
-
-def get_spread_refill(pair, df, exchange_refill):
-    """ Identify spread for a pair and returns data for arbitrage trade
-    """
-    bb_exchange = 'bittrex'
-    best_bid = df.loc[df['exchange'] == bb_exchange, 'high_bid'].values[0]
-    best_bid_size = df.loc[df['exchange'] == bb_exchange, 'high_bid_size'].values[0]
-
-    ba_exchange = exchange_refill
-    best_ask = df.loc[df['exchange'] == ba_exchange, 'low_ask'].values[0]
-    best_ask_size = df.loc[df['exchange'] == ba_exchange, 'low_ask_size'].values[0]
-
-
-    spread = 100 * (best_bid - best_ask) / best_bid
-
-    return(bb_exchange, best_bid, best_bid_size,\
-           ba_exchange, best_ask, best_ask_size, spread)
-
-
-async def find_arbitrage_refill(df, pair, exchanges, exchangesBySymbol, exchange_refill):
-    """ Cycles once through all pairs and exchanges and triggers arb trades
-    """
-
-    # Load orderbooks at all exchanges containing pair
-    for id in exchangesBySymbol[pair]:
-        row = await load_order_book(exchanges[id], pair)
-        df = df.append(pd.DataFrame([row], columns=df.columns)\
-                            , ignore_index=True)
-
-    # print biggest spread for pair
-    bb_exchange, best_bid, best_bid_size,\
-        ba_exchange, best_ask, best_ask_size, spread = get_spread_refill(pair, df, exchange_refill)
-    print("Biggest % spread for ", pair, spread, "sell at", bb_exchange, "buy at", ba_exchange)
-
-    if spread > 1.5:
-
-        # 0.017 btc is 250 USD
-        min_arb_amount = 0.017 / best_bid
-        # Minimal trade value on cex
-        min_arb_amount = max(min_arb_amount, 0.1)
-
-        max_arb_amount = max(0.07 / best_bid, min_arb_amount)
-
-        # Check funds
-        bb_balance = await exchanges[bb_exchange].fetch_balance()
-        ba_balance = await exchanges[ba_exchange].fetch_balance()
-        # min_funds = min(bb_balance, ba_balance)
-        # max_arb_amount = min(max_arb_amount, bb_balance)
-
-        arb_amount = min(max_arb_amount, best_bid_size, best_ask_size)
-
-        # Check orderbook size
-        if (min_arb_amount <= best_bid_size and min_arb_amount <= best_ask_size):
-
-            sell_price = math.floor(best_bid*0.999 * 1e5) / 1e5
-            buy_price = math.ceil(best_ask*1.001 * 1e5) / 1e5
-
-            if (bb_balance[pair.split("/")[0]]['total'] > arb_amount) and\
-                (ba_balance[pair.split("/")[1]]['total'] > arb_amount * buy_price):
-
-                # Round amount to 4 digits (prevent "amount too precise")
-                arb_amount = math.floor(arb_amount *1e4) / 1e4
-                print("***** arbitrage *****")
-                # take
-                print("Amount in USD",\
-                      arb_amount * 15000 * best_bid) # TODO get BTC price in USD
-                print("Sell", bb_exchange, pair, "amount", arb_amount, sell_price)
-                print("Buy", ba_exchange, pair, "amount", arb_amount, buy_price)
-
-                # Launch orders
-                sell_order = await exchanges[bb_exchange].create_limit_sell_order(pair, arb_amount, sell_price)
-                print("Sell order: ", sell_order)
-                buy_order = await exchanges[ba_exchange].create_limit_buy_order(pair, arb_amount, buy_price)
-                print("Buy order: ", buy_order)
-                print("\n")
-
-                # Check portfolio went up
-                portfolio_up = False
-                portfolio_counter = 0
-
-                while portfolio_up == False and portfolio_counter < 3:
-                    bb_balance_after = await exchanges[bb_exchange].fetch_balance()
-                    ba_balance_after = await exchanges[ba_exchange].fetch_balance()
-
-                    portfolio_up = await is_higher(pair.split("/")[0], pair.split("/")[1],\
-                                             bb_balance, ba_balance,\
-                                             bb_balance_after, ba_balance_after)
-                    time.sleep(5)
-                    portfolio_counter += 1
-                return(portfolio_up)
-            else:
-                print("  Not enough funds")
-                print("  sell balance", bb_exchange, pair.split("/")[0],
-                      bb_balance[pair.split("/")[0]]['total'])
-                print("  amount to sell", arb_amount)
-                print("  buy balance", ba_exchange, pair.split("/")[1],
-                      ba_balance[pair.split("/")[1]]['total'])
-                print("  amount to buy", arb_amount * buy_price)
-
-        else:
-            print("  No order book size")
-            print("  amount to sell", min_arb_amount,"bid_size", best_bid_size)
-            print("  amount to buy", min_arb_amount, "ask_size", best_ask_size)
-
-    return(True) # nothing was done
+# ################################################################################
+# # Refill cex with BTC
+# ################################################################################
+#
+# def get_spread_refill(pair, df, exchange_refill):
+#     """ Identify spread for a pair and returns data for arbitrage trade
+#     """
+#     bb_exchange = 'bittrex'
+#     best_bid = df.loc[df['exchange'] == bb_exchange, 'high_bid'].values[0]
+#     best_bid_size = df.loc[df['exchange'] == bb_exchange, 'high_bid_size'].values[0]
+#
+#     ba_exchange = exchange_refill
+#     best_ask = df.loc[df['exchange'] == ba_exchange, 'low_ask'].values[0]
+#     best_ask_size = df.loc[df['exchange'] == ba_exchange, 'low_ask_size'].values[0]
+#
+#
+#     spread = 100 * (best_bid - best_ask) / best_bid
+#
+#     return(bb_exchange, best_bid, best_bid_size,\
+#            ba_exchange, best_ask, best_ask_size, spread)
+#
+#
+# async def find_arbitrage_refill(df, pair, exchanges, exchangesBySymbol, exchange_refill):
+#     """ Cycles once through all pairs and exchanges and triggers arb trades
+#     """
+#
+#     # Load orderbooks at all exchanges containing pair
+#     for id in exchangesBySymbol[pair]:
+#         row = await load_order_book(exchanges[id], pair)
+#         df = df.append(pd.DataFrame([row], columns=df.columns)\
+#                             , ignore_index=True)
+#
+#     # print biggest spread for pair
+#     bb_exchange, best_bid, best_bid_size,\
+#         ba_exchange, best_ask, best_ask_size, spread = get_spread_refill(pair, df, exchange_refill)
+#     print("Biggest % spread for ", pair, spread, "sell at", bb_exchange, "buy at", ba_exchange)
+#
+#     if spread > 1.5:
+#
+#         # 0.017 btc is 250 USD
+#         min_arb_amount = 0.017 / best_bid
+#         # Minimal trade value on cex
+#         min_arb_amount = max(min_arb_amount, 0.1)
+#
+#         max_arb_amount = max(0.07 / best_bid, min_arb_amount)
+#
+#         # Check funds
+#         bb_balance = await exchanges[bb_exchange].fetch_balance()
+#         ba_balance = await exchanges[ba_exchange].fetch_balance()
+#         # min_funds = min(bb_balance, ba_balance)
+#         # max_arb_amount = min(max_arb_amount, bb_balance)
+#
+#         arb_amount = min(max_arb_amount, best_bid_size, best_ask_size)
+#
+#         # Check orderbook size
+#         if (min_arb_amount <= best_bid_size and min_arb_amount <= best_ask_size):
+#
+#             sell_price = math.floor(best_bid*0.999 * 1e5) / 1e5
+#             buy_price = math.ceil(best_ask*1.001 * 1e5) / 1e5
+#
+#             if (bb_balance[pair.split("/")[0]]['total'] > arb_amount) and\
+#                 (ba_balance[pair.split("/")[1]]['total'] > arb_amount * buy_price):
+#
+#                 # Round amount to 4 digits (prevent "amount too precise")
+#                 arb_amount = math.floor(arb_amount *1e4) / 1e4
+#                 print("***** arbitrage *****")
+#                 # take
+#                 print("Amount in USD",\
+#                       arb_amount * 15000 * best_bid) # TODO get BTC price in USD
+#                 print("Sell", bb_exchange, pair, "amount", arb_amount, sell_price)
+#                 print("Buy", ba_exchange, pair, "amount", arb_amount, buy_price)
+#
+#                 # Launch orders
+#                 sell_order = await exchanges[bb_exchange].create_limit_sell_order(pair, arb_amount, sell_price)
+#                 print("Sell order: ", sell_order)
+#                 buy_order = await exchanges[ba_exchange].create_limit_buy_order(pair, arb_amount, buy_price)
+#                 print("Buy order: ", buy_order)
+#                 print("\n")
+#
+#                 # Check portfolio went up
+#                 portfolio_up = False
+#                 portfolio_counter = 0
+#
+#                 while portfolio_up == False and portfolio_counter < 3:
+#                     bb_balance_after = await exchanges[bb_exchange].fetch_balance()
+#                     ba_balance_after = await exchanges[ba_exchange].fetch_balance()
+#
+#                     portfolio_up = await is_higher(pair.split("/")[0], pair.split("/")[1],\
+#                                              bb_balance, ba_balance,\
+#                                              bb_balance_after, ba_balance_after)
+#                     time.sleep(5)
+#                     portfolio_counter += 1
+#                 return(portfolio_up)
+#             else:
+#                 print("  Not enough funds")
+#                 print("  sell balance", bb_exchange, pair.split("/")[0],
+#                       bb_balance[pair.split("/")[0]]['total'])
+#                 print("  amount to sell", arb_amount)
+#                 print("  buy balance", ba_exchange, pair.split("/")[1],
+#                       ba_balance[pair.split("/")[1]]['total'])
+#                 print("  amount to buy", arb_amount * buy_price)
+#
+#         else:
+#             print("  No order book size")
+#             print("  amount to sell", min_arb_amount,"bid_size", best_bid_size)
+#             print("  amount to buy", min_arb_amount, "ask_size", best_ask_size)
+#
+#     return(True) # nothing was done
