@@ -47,7 +47,8 @@ rootLogger.addHandler(fileHandler)
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
-consoleHandler.setLevel(level=logging.DEBUG)
+consoleHandler.setLevel(level=logging.INFO
+                        )
 rootLogger.addHandler(consoleHandler)
 
 # helpers module logger
@@ -108,7 +109,7 @@ arbitrableSymbols = sorted([symbol for symbol in uniqueSymbols if allSymbols.cou
 
 # Remove FIAT es
 # TODO make option in program
-FiatCurrencies = ['EUR', 'USD', 'GBP']
+FiatCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
 arbitrableSymbolsWithoutFiat = []
 
 for symbol in arbitrableSymbols:
@@ -134,15 +135,18 @@ for pair in arbitrableSymbols:
             except KeyError:
                 exchangesBySymbol[pair] = [id]
 
+rootLogger.info("***Arbitrable Symbols(%d)***", len(arbitrableSymbols))
+rootLogger.info("%s", arbitrableSymbols)
+
 ################################################################################
 # Arbitrage
 ################################################################################
 
 
 # Show portfolio
-rootLogger.info("Printing portfolio...")
-portfolio = asyncio.get_event_loop().\
-    run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
+# rootLogger.info("Printing portfolio...")
+# portfolio = asyncio.get_event_loop().\
+#     run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
 
 @asyncio.coroutine
 def load_prices():

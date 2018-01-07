@@ -60,16 +60,25 @@ async def find_arbitrage(df, pair, exchanges, exchangesBySymbol):
 
     # Load orderbooks at all exchanges containing pair
     for id in exchangesBySymbol[pair]:
-        row = await load_order_book(exchanges[id], pair)
-        df = df.append(pd.DataFrame([row], columns=df.columns)\
+        try:
+            logger.debug("Exchange: %s pair: %s", id, pair)
+            row = await load_order_book(exchanges[id], pair)
+            df = df.append(pd.DataFrame([row], columns=df.columns)\
                             , ignore_index=True)
+        except:
+            pass # if order book empty don't try to add row
 
     # print biggest spread for pair
-    bb_exchange, best_bid, best_bid_size,\
-        ba_exchange, best_ask, best_ask_size, spread = get_spread(pair, df)
-    logger.info("Biggest percent spread for %s: %s", pair, spread)
+    try:
+        bb_exchange, best_bid, best_bid_size,\
+            ba_exchange, best_ask, best_ask_size, spread = get_spread(pair, df)
+        logger.info("Biggest percent spread for %s: %s (sell %s, buy %s)",\
+                    pair, spread, bb_exchange, ba_exchange)
+    except:
+        logger.info("No spread calculated for %s at %s", pair, id)
+        return(True) # nothing was done
 
-    if spread > 5:
+    if False: # spread > 100:
 
         # Min 0.01 ~ 160 USD
         min_arb_amount = 0.01 / best_bid
