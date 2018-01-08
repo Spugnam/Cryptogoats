@@ -30,15 +30,17 @@ import pandas as pd
 
 sellExchanges = [] # ['binance', 'bittrex', 'cex']
 buyExchanges = [] # ['binance', 'bittrex', 'cex']
-allowedPairs = ['LSK/BTC', 'VIA/BTC','NLG/BTC','STORJ/BTC','BCH/BTC','ETH/BTC','ZEC/BTC','XRP/BTC','ZEC/BTC', 'BTG/BTC','LTC/BTC','DASH/BTC']
+allowedExchanges = [] # ['bittrex', 'cex', 'gdax', 'yobit'] #
+allowedPairs = ['LSK/BTC', 'VIA/BTC','STORJ/BTC','BCH/BTC','ETH/BTC','ZEC/BTC','XRP/BTC','ZEC/BTC', 'BTG/BTC','LTC/BTC','DASH/BTC']
 excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
 arbitrage = True
 minSpread = 1
-min_arb_amount_BTC = .0007
-max_arb_amount_BTC = .01
+min_arb_amount_BTC = .004
+max_arb_amount_BTC = .07
 displayPortolio = True
-cycles = 2 # number of cycles through all available pairs
+cycles = 15 # number of cycles through all available pairs
 loggingMode = logging.INFO # logging.DEBUG, logging.INFO
+inBTC = True # Display portfolio value in BTC
 
 ################################################################################
 # Logger initialization
@@ -90,11 +92,16 @@ rootLogger.info("...loading exchanges...")
 with open('./CryptoGoats/config_exchanges.json') as f:
     config = json.load(f)
 
+if allowedExchanges == []:
+    for id in config:
+        allowedExchanges.append(id)
+
 exchanges = {}
 for id in ccxt.exchanges:  # list of exchanges id ['acx', bittrex'...]
-    if id in config:
+    if id in allowedExchanges:
         exchange = getattr(ccxt, id) # exchange becomes function bittrex()
         exchanges[id] = exchange(config[id])
+
 
 # Remove exchanges that couldn't be loaded
 notLoaded = list()
@@ -172,7 +179,8 @@ rootLogger.info(style.OKGREEN + "Allowed exchanges for buy orders %s"\
 # Show portfolio
 if displayPortolio:
     portfolio = asyncio.get_event_loop().\
-        run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
+        run_until_complete(portfolio_balance(exchanges, arbitrableSymbols,\
+                                             inBTC=inBTC))
 
 
 @asyncio.coroutine
