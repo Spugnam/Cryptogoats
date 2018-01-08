@@ -28,15 +28,17 @@ import pandas as pd
 # Logger initialization
 ################################################################################
 
-sellExchanges = [] # ['binance', 'bittrex', 'cex']
+sellExchanges = ['yobit'] # ['binance', 'bittrex', 'cex']
 buyExchanges = [] # ['binance', 'bittrex', 'cex']
 # allowedPairs = ['START/BTC', 'STORJ/BTC', 'STORJ/ETH', 'SWT/BTC', 'SYNX/BTC', 'SYS/BTC', 'TX/BTC', 'VIA/BTC', 'VTC/BTC', 'WAVES/BTC', 'WAVES/ETH', 'XEM/BTC', 'XEM/ETH', 'XMG/BTC', 'XRP/BTC', 'XVG/BTC', 'ZEC/BTC', 'ZEC/ETH']
-allowedPairs = [] # ['ABY/BTC', 'ADT/BTC']
+allowedPairs = ['ZEC/BTC'] # ['VIA/BTC']
 excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
-arbitrage = False
+arbitrage = True
 minSpread = 5
-min_arb_amount_BTC = .01
-max_arb_amount_BTC = .07
+min_arb_amount_BTC = .0007
+max_arb_amount_BTC = .01
+displayPortolio = True
+cycles = 2 # number of cycles through all available pairs
 
 ################################################################################
 # Logger initialization
@@ -60,7 +62,7 @@ rootLogger.addHandler(fileHandler)
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
-consoleHandler.setLevel(level=logging.INFO)
+consoleHandler.setLevel(level=logging.DEBUG)
 rootLogger.addHandler(consoleHandler)
 
 # helpers module logger
@@ -168,9 +170,9 @@ rootLogger.info(style.OKGREEN + "Allowed exchanges for buy orders %s"\
 
 
 # Show portfolio
-# rootLogger.info("Printing portfolio...")
-# portfolio = asyncio.get_event_loop().\
-#     run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
+if displayPortolio:
+    portfolio = asyncio.get_event_loop().\
+        run_until_complete(portfolio_balance(exchanges, arbitrableSymbols, inBTC=False))
 
 
 @asyncio.coroutine
@@ -178,7 +180,7 @@ def main():
     # starttime = time.time()
     counter = 1
     pair_counter = 0
-    while True and counter < 500:
+    while True and counter <= cycles*len(arbitrableSymbols):
         try:
             pair = arbitrableSymbols[pair_counter]
             portfolio_up = yield from pair_arbitrage(prices,\
@@ -200,6 +202,12 @@ def main():
             pair_counter = (pair_counter + 1) % (len(arbitrableSymbols))
         except KeyboardInterrupt:
             rootLogger.info("exiting program (print portfolio here)")
+    newPortfolio = yield from portfolio_balance(exchanges,
+                                                arbitrableSymbols)
+    rootLogger.info(style.OKBLUE + "Portfolio Change summary" + style.END)
+    for curr, total in newPortfolio.items():
+        rootLogger.info("%s %f", curr,\
+                        newPortfolio[curr] - portfolio[curr])
 
 task = asyncio.Task(main())
 loop = asyncio.get_event_loop()
