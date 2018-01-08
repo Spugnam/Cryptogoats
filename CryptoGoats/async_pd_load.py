@@ -31,14 +31,15 @@ import pandas as pd
 sellExchanges = ['yobit'] # ['binance', 'bittrex', 'cex']
 buyExchanges = [] # ['binance', 'bittrex', 'cex']
 # allowedPairs = ['START/BTC', 'STORJ/BTC', 'STORJ/ETH', 'SWT/BTC', 'SYNX/BTC', 'SYS/BTC', 'TX/BTC', 'VIA/BTC', 'VTC/BTC', 'WAVES/BTC', 'WAVES/ETH', 'XEM/BTC', 'XEM/ETH', 'XMG/BTC', 'XRP/BTC', 'XVG/BTC', 'ZEC/BTC', 'ZEC/ETH']
-allowedPairs = ['ZEC/BTC'] # ['VIA/BTC']
+allowedPairs = [] # ['VIA/BTC']
 excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
-arbitrage = True
+arbitrage = False
 minSpread = 5
 min_arb_amount_BTC = .0007
 max_arb_amount_BTC = .01
 displayPortolio = True
 cycles = 2 # number of cycles through all available pairs
+loggingMode = logging.INFO # logging.DEBUG, logging.INFO
 
 ################################################################################
 # Logger initialization
@@ -62,7 +63,7 @@ rootLogger.addHandler(fileHandler)
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
-consoleHandler.setLevel(level=logging.DEBUG)
+consoleHandler.setLevel(level=loggingMode)
 rootLogger.addHandler(consoleHandler)
 
 # helpers module logger
