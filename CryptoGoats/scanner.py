@@ -14,11 +14,11 @@ from os import _exit
 import ccxt.async as ccxt
 # to work with jupyter or from console
 try:
-    from CryptoGoats.helpers import *
+    from CryptoGoats.trading_functions import *
 except:
     pass
 try:
-    from helpers import *
+    from trading_functions import *
 except:
     pass
 import psycopg2
@@ -28,13 +28,12 @@ import pandas as pd
 # Logger initialization
 ################################################################################
 
-sellExchanges = ['yobit'] # ['binance', 'bittrex', 'cex']
+sellExchanges = [] # ['binance', 'bittrex', 'cex']
 buyExchanges = [] # ['binance', 'bittrex', 'cex']
-# allowedPairs = ['START/BTC', 'STORJ/BTC', 'STORJ/ETH', 'SWT/BTC', 'SYNX/BTC', 'SYS/BTC', 'TX/BTC', 'VIA/BTC', 'VTC/BTC', 'WAVES/BTC', 'WAVES/ETH', 'XEM/BTC', 'XEM/ETH', 'XMG/BTC', 'XRP/BTC', 'XVG/BTC', 'ZEC/BTC', 'ZEC/ETH']
-allowedPairs = [] # ['VIA/BTC']
+allowedPairs = ['LSK/BTC', 'VIA/BTC','NLG/BTC','STORJ/BTC','BCH/BTC','ETH/BTC','ZEC/BTC','XRP/BTC','ZEC/BTC', 'BTG/BTC','LTC/BTC','DASH/BTC']
 excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
-arbitrage = False
-minSpread = 5
+arbitrage = True
+minSpread = 1
 min_arb_amount_BTC = .0007
 max_arb_amount_BTC = .01
 displayPortolio = True
@@ -106,7 +105,7 @@ for id, exchange in exchanges.items(): # Py3: items() instead of iteritems()
         notLoaded.append(id)
 
 for id in notLoaded:
-    rootLogger.info("Coundn't load %s", id)
+    rootLogger.info(style.FAIL + "Coundn't load %s" + style.END, id)
     del exchanges[id]
 
 # Find arbitrable pairs (in more than 1 exchange)

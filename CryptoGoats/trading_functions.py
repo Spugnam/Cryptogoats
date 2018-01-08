@@ -187,41 +187,43 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
                 # print("\n")
 
                 # Check portfolio went up
-                bb_balance_after = await exchanges[bb_exchange].fetch_balance()
-                ba_balance_after = await exchanges[ba_exchange].fetch_balance()
-                portfolio_up = is_higher(pair.split("/")[0], pair.split("/")[1],\
-                                         bb_balance, ba_balance,\
-                                         bb_balance_after, ba_balance_after)
-                # Try again if needed
+                portfolio_up = False
                 portfolio_counter = 0
                 while portfolio_up == False and portfolio_counter < 2:
-                    time.sleep(5)
-                    bb_balance_after = await exchanges[bb_exchange].fetch_balance()
-                    ba_balance_after = await exchanges[ba_exchange].fetch_balance()
-                    portfolio_up = is_higher(pair.split("/")[0], pair.split("/")[1],\
+                    # try getting balance up to 3 times
+                    for _ in range(3):
+                        try:
+                            bb_balance_after = await exchanges[bb_exchange].fetch_balance()
+                            ba_balance_after = await exchanges[ba_exchange].fetch_balance()
+                        except Exception as mess:
+                            logger.warning(style.FAIL + "%s" + style.END, mess)
+                        else:
+                            break
+                    portfolio_up, base_diff, quote_diff =\
+                        balance_check(pair.split("/")[0], pair.split("/")[1],\
                                              bb_balance, ba_balance,\
                                              bb_balance_after, ba_balance_after)
+                    if not portfolio_up:
+                        time.sleep(5)
                     portfolio_counter += 1
+
+                BTC_price = await ccxt.gemini().fetchTicker('BTC/USD')
+                logger.info("Trade gain (USD) %f, percent %f",\
+                            quote_diff * BTC_price, 100* quote_diff / arb_amount)
                 return(portfolio_up)
             else:
-                logger.info("  Not enough funds")
-                logger.debug("  sell balance %s %s %f", bb_exchange, pair.split("/")[0],
+                logger.warning("  Not enough funds")
+                logger.info("  sell balance %s %s %f", bb_exchange, pair.split("/")[0],
                       bb_balance[pair.split("/")[0]]['total'])
-                # print("  sell balance", bb_exchange, pair.split("/")[0],
-                #       bb_balance[pair.split("/")[0]]['total'])
-                logger.debug("  Minimum amount %f", min_arb_amount)
-                # print("  amount to sell", arb_amount)
-                logger.debug("  buy balance %s %s %f", ba_exchange, pair.split("/")[1],
+                logger.info("  Minimum amount %f", min_arb_amount)
+                logger.info("  buy balance %s %s %f", ba_exchange, pair.split("/")[1],
                       ba_balance[pair.split("/")[1]]['total'])
-                # print("  buy balance", ba_exchange, pair.split("/")[1],
-                #       ba_balance[pair.split("/")[1]]['total'])
-                logger.debug("  Minimum amount %f", min_arb_amount * buy_price)
-                # print("  amount to buy", arb_amount * buy_price)
+                logger.info("  Minimum amount %f", min_arb_amount * buy_price)
 
         else:
-            logger.info("  No order book size")
-            logger.debug("  amount to sell %f bid_size %f", min_arb_amount, best_bid_size)
-            logger.debug("  amount to buy %f ask_size %f", min_arb_amount, best_ask_size)
+            logger.warning("  No order book size")
+            logger.info("  amount to sell %f bid_size %f", min_arb_amount, best_bid_size)
+            logger.info("  amount to buy %f ask_size %f", min_arb_amount, best_ask_size)
 
     return(True) # nothing was done
 
@@ -229,7 +231,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
 # Portfolio Balance
 ################################################################################
 
-def is_higher(base, quote, bb_balance, ba_balance,\
+def balance_check(base, quote, bb_balance, ba_balance,\
                          bb_balance_after, ba_balance_after):
 
     base_diff = bb_balance_after[base]['total'] - bb_balance[base]['total'] +\
@@ -239,7 +241,9 @@ def is_higher(base, quote, bb_balance, ba_balance,\
         ba_balance_after[quote]['total'] - ba_balance[quote]['total']
     logger.info("Portfolio change: %f %s", quote_diff, quote)
 
-    return(base_diff>=-1e-5 and quote_diff>-1e-5)
+    is_higher = base_diff>=-1e-5 and quote_diff>-1e-5
+
+    return(is_higher, base_diff, quote_diff)
 
 async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
     """ Returns the value of the portfolio in BTC for all currencies in
@@ -266,7 +270,15 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
 
     BTC_value = 0
     for id, exchange in exchanges.items():
-        balance = await exchange.fetch_balance()
+        # try getting balance up to 3 times
+        for _ in range(3):
+            try:
+                balance = await exchange.fetch_balance()
+            except Exception as mess:
+                logger.info(style.FAIL + "%s" + style.END, mess)
+            else:
+                break
+
         logger.info(style.BOLD + "Exchange: %s" + style.END, id)
         for curr in Currencies:
             try:
