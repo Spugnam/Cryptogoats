@@ -242,8 +242,8 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
 
     # Rounding below needed for gdax
     # Will also loosen the limit and trigger more executions
-    sell_price = math.floor(best_bid*0.999 * 1e5) / 1e5
-    buy_price = math.ceil(best_ask*1.001 * 1e5) / 1e5
+    sell_price = math.floor(best_bid*0.99 * 1e5) / 1e5
+    buy_price = math.ceil(best_ask*1.01 * 1e5) / 1e5
 
     # Check wallet exist, reduce arb_amount to what funds allow
     try:
@@ -339,7 +339,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
 
     # trade gain in BTC
     trade_gain_BTC = base_diff * quote_rate + quote_diff
-    trade_gain_USD = trade_gain_BTC * BTC_price['ask']
+    trade_gain_USD = trade_gain_BTC * quote_price['ask']
 
     logger.info("Trade gain (USD) %f, Percentage gain %f",\
                 trade_gain_USD,\

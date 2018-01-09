@@ -38,7 +38,8 @@ exchanges_filepath = './CryptoGoats/Config/Exchanges/' + exchanges_file + '.json
 # sellExchanges = [] # ['binance', 'bittrex', 'cex']
 # buyExchanges = [] # ['binance', 'bittrex', 'cex']
 # allowedExchanges = ['bittrex', 'cex', 'gdax', 'yobit'] #
-# allowedPairs = ['LSK/BTC', 'VIA/BTC','STORJ/BTC','BCH/BTC','ETH/BTC','ZEC/BTC','XRP/BTC','ZEC/BTC', 'BTG/BTC','LTC/BTC','DASH/BTC']
+# allowedPairs = ['LSK/BTC', 'VIA/BTC','STORJ/BTC','BCH/BTC','ETH/BTC',
+# 'ZEC/BTC','XRP/BTC','ZEC/BTC', 'BTG/BTC','LTC/BTC','DASH/BTC']
 # excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
 # arbitrage = False
 # minSpread = 1.5
@@ -98,7 +99,10 @@ rootLogger.info("Created log file: %s", fileName)
 # Display Strategy parameters
 rootLogger.info(style.HEADER + "Configuration" + style.END)
 for key, value in params.items():
-    rootLogger.info("%s %s", key, value)
+    if key == 'minSpread':
+        rootLogger.info(style.HEADER + "%s %s" + style.END, key, value)
+    else:
+        rootLogger.info("%s %s", key, value)
 
 # Pandas df
 pd.set_option('display.float_format', lambda x: '%.10f' % x) # display 10 digits
