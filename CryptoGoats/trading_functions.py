@@ -135,20 +135,29 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     # Initialization
     ############################################################
 
-    if pair.split("/")[1] == 'BTC':
-        quote_price = await ccxt.gemini().fetchTicker('BTC/USD')
-    elif pair.split("/")[1] == 'ETH':
-        quote_price = await ccxt.gemini().fetchTicker('ETH/USD')
-    else:
+    quote_pair = pair.split("/")[1] # e.g. 'BTC'
+    if quote_pair != 'BTC' and quote_pair != 'ETH':
         logger.warning(style.FAIL +\
-                       "Quote currency other than BTC or ETH not covered"\
-                       + style.END)
+                       "Quote currency other than BTC or ETH not covered %s"\
+                       + style.END, pair)
+        return(0)
+
+    for _ in range(3):
+        try:
+            quote_price =\
+            await ccxt.gemini().fetchTicker(quote_pair + '/USD')
+        except Exception as mess:
+            logger.warning(style.FAIL + "%s" + style.END, mess)
+        else:
+            break
+
+    if quote_price is None:
         return(0)
 
     for id in 'bittrex', 'binance':
         try:
             # quote_rate: price of base currency in quote currency
-            # e.g. XRP = xxx BTC
+            # e.g. XRP = xxx ETH for XRP/ETH
             quote_rate = await exchanges[id].fetchTicker(pair)
             quote_rate = quote_rate['ask']
         except:
@@ -161,8 +170,8 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
         min_arb_amount = min_arb_amount_BTC / quote_rate
         # min_arb_amount = max(min_arb_amount, 0.1) # Minimal trade value on cex
     except:
-        logger.warning(style.FAIL + "Rate not defined at Bittrex or Binance"\
-                       + style.END)
+        logger.warning(style.FAIL + "Rate not defined at Bittrex or Binance %s"\
+                       + style.END, pair)
         return(0)
 
 
@@ -242,7 +251,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
         logger.debug("Arb amount after funds check %f", arb_amount)
         logger.debug("min_arb_amount %f", min_arb_amount)
     except Exception as mess:
-        logger.warning(style.LIGHTBLUE + "No wallet defined %s" + style.END, mess)
+        logger.warning(style.BOLD + "No wallet defined %s" + style.END, mess)
         return(0)
 
     # Check orderbook size
@@ -375,9 +384,15 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
         logger.info("...loading BTC rates...")
         CurrenciesBitcoinRate = dict()
         for curr in Currencies:
-            CurrenciesBitcoinRate[curr] =\
-                await exchanges['bittrex'].fetchTicker(curr + '/BTC')
-
+            for id in 'bittrex', 'binance':
+                try:
+                    CurrenciesBitcoinRate[curr] =\
+                    await exchanges[id].fetchTicker(curr + '/BTC')
+                except Exception as mess:
+                    logger.warning(style.FAIL + "%s" + style.END, mess)
+                    CurrenciesBitcoinRate[curr] = 0
+                else:
+                    break
 
     Currencies.append('BTC')
 
@@ -418,7 +433,10 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
             if curr == 'BTC':
                 BTC_value += portfolio[curr] * 1.
             else:
-                BTC_value += portfolio[curr] * CurrenciesBitcoinRate[curr]['ask']
+                try:
+                    BTC_value += portfolio[curr] * CurrenciesBitcoinRate[curr]['ask']
+                except:
+                    pass
         logger.info("Total portfolio balance: %f (BTC)", BTC_value)
         BTC_price = await ccxt.gemini().fetchTicker('BTC/USD')
         logger.info("Total portfolio balance: %f (USD)",\
