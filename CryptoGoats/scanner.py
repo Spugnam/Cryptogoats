@@ -30,10 +30,10 @@ import pandas as pd
 
 sellExchanges = [] # ['binance', 'bittrex', 'cex']
 buyExchanges = [] # ['binance', 'bittrex', 'cex']
-allowedExchanges = [] # ['bittrex', 'cex', 'gdax', 'yobit'] #
+allowedExchanges = ['bittrex', 'cex', 'gdax', 'yobit'] #
 allowedPairs = []
 excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
-arbitrage = False
+arbitrage = True
 minSpread = 1.5
 min_arb_amount_BTC = .004
 max_arb_amount_BTC = .07

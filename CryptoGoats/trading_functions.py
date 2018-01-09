@@ -221,6 +221,8 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     logger.debug("Arb amount after orderbook adjustment %f", arb_amount)
 
     # Check funds
+    bb_balance = -1
+    ba_balance = -1
     for _ in range(3):
         try:
             bb_balance = await exchanges[bb_exchange].fetch_balance()
@@ -229,11 +231,11 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
             logger.warning(style.FAIL + "%s" + style.END, mess)
         else:
             break
-    if bb_balance is None:
+    if bb_balance == -1:
         logger.warning(style.FAIL + "Balance couldn't be retrieved%s"\
                        + style.END, bb_exchange)
         return(0)
-    if ba_balance is None:
+    if ba_balance == -1:
         logger.warning(style.FAIL + "Balance couldn't be retrieved%s"\
                        + style.END, ba_balance)
         return(0)
@@ -251,7 +253,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
         logger.debug("Arb amount after funds check %f", arb_amount)
         logger.debug("min_arb_amount %f", min_arb_amount)
     except Exception as mess:
-        logger.warning(style.BOLD + "No wallet defined %s" + style.END, mess)
+        logger.warning(style.LIGHTBLUE + "No wallet defined %s" + style.END, mess)
         return(0)
 
     # Check orderbook size
@@ -336,7 +338,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
         portfolio_counter += 1
 
     # trade gain in BTC
-    trade_gain_BTC = base_diff * BTC_rate + quote_diff
+    trade_gain_BTC = base_diff * quote_rate + quote_diff
     trade_gain_USD = trade_gain_BTC * BTC_price['ask']
 
     logger.info("Trade gain (USD) %f, Percentage gain %f",\
@@ -366,6 +368,9 @@ def balance_check(base, quote, bb_balance, ba_balance,\
     is_higher = base_diff>=-1e-5 and quote_diff>0
 
     return(is_higher, base_diff, quote_diff)
+
+
+
 
 async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
     """ Returns the value of the portfolio in BTC for all currencies in
