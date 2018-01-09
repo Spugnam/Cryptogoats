@@ -416,7 +416,7 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
         for curr in Currencies:
             try:
                 if balance[curr]['total'] != 0:
-                    logger.info("%s %f", curr, balance[curr]['total'])
+                    logger.info("%s %s %f", id, curr, balance[curr]['total'])
                 try:
                     portfolio[curr] += balance[curr]['total']
                 except KeyError:

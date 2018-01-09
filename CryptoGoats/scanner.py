@@ -31,14 +31,14 @@ import pandas as pd
 sellExchanges = [] # ['binance', 'bittrex', 'cex']
 buyExchanges = [] # ['binance', 'bittrex', 'cex']
 allowedExchanges = ['bittrex', 'cex', 'gdax', 'yobit'] #
-allowedPairs = []
+allowedPairs = ['LSK/BTC', 'VIA/BTC','STORJ/BTC','BCH/BTC','ETH/BTC','ZEC/BTC','XRP/BTC','ZEC/BTC', 'BTG/BTC','LTC/BTC','DASH/BTC']
 excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
-arbitrage = True
+arbitrage = False
 minSpread = 1.5
 min_arb_amount_BTC = .004
 max_arb_amount_BTC = .07
 displayPortolio = True
-cycles = 15 # number of cycles through all available pairs
+cycles = 200 # number of cycles through all available pairs
 loggingMode = logging.INFO # logging.DEBUG, logging.INFO
 inBTC = True # Display portfolio value in BTC
 

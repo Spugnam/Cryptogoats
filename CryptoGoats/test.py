@@ -173,6 +173,71 @@ asyncio.get_event_loop().\
     run_until_complete(exchanges['yobit'].fetch_balance())
 
 
+BTC_price = asyncio.get_event_loop().\
+    run_until_complete(exchanges['gemini'].fetchTicker('BTC/USD'))
+BTC_price['ask']
+
 asyncio.get_event_loop().\
-    run_until_complete(exchanges['bittrex'].fetch_balance())
-portfolio
+    run_until_complete(exchanges['gemini'].fetchTicker('BTC/USD'))['ask']
+
+def test():
+    btc = await ccxt.gemini().fetchTicker('BTC/USD')
+    print(btc)
+    return(btc)
+
+ccxt.yobit().fetch_orders()
+ccxt.yobit().fetchTicker('BTC/USD')
+
+test
+b
+
+price_in_btc = asyncio.get_event_loop().\
+    run_until_complete(exchanges['bittrex'].fetchTicker('ETH/USD'))
+
+price_in_btc = asyncio.get_event_loop().\
+    run_until_complete(ccxt.gemini().fetchTicker('BTC/USD'))
+price_in_btc
+
+pair = 'ETH/ETH'
+
+if pair.split("/")[1] == 'BTC':
+    print(2)
+elif pair.split("/")[1] == 'ETH':
+    print(3)
+else:
+    print(4)
+
+
+price_in_btc
+
+
+
+price_in_btc['ask']
+price_in_btc
+
+price_in_btc
+
+
+base_diff = -0.197000
+quote_diff = 0.009022
+is_higher = base_diff>=-1e-5 and quote_diff>-1e-5
+is_higher
+
+orderbook = asyncio.get_event_loop().\
+    run_until_complete(exchanges['yobit'].fetch_order_book(pair))
+
+i = 0
+while orderbook['bids'][i][1] < 0.3:
+    i +=1
+orderbook['bids'][i][0]
+
+orderbook['bids'][2]
+len(orderbook['bids'])
+
+i = 0
+while i < len(orderbook) and\
+    orderbook['bids'][i][1] < min_arb_amount_BTC / orderbook['bids'][i][0]:
+    logger.debug("min_arb_amount %f bid %f bid size %f, i: %d",\
+                 min_arb_amount_BTC / orderbook['bids'][i][0],\
+                 high_bid, high_bid_size, i)
+    i +=1
