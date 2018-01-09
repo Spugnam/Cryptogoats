@@ -71,7 +71,7 @@ async def load_order_book(exchange, pair, min_arb_amount):
     return(row)
 
 ################################################################################
-# Arbitrage
+# Spread
 ################################################################################
 
 def get_spread(pair, df, sellExchanges, buyExchanges):
@@ -118,6 +118,11 @@ def get_spread(pair, df, sellExchanges, buyExchanges):
            ba_exchange, best_ask, best_ask_size, spread)
 
 
+
+################################################################################
+# Arbitrage
+################################################################################
+
 async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
                          sellExchanges, buyExchanges,\
                          arbitrage=False, minSpread=5,\
@@ -129,20 +134,38 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     ############################################################
     # Initialization
     ############################################################
-    # Price of BTC in USD
-    BTC_price = await ccxt.gemini().fetchTicker('BTC/USD')
-    # Price of base pair in BTC
-    try:
-        BTC_rate = await exchanges['bittrex'].fetchTicker(pair.split("/")[0] + "/BTC")
-        BTC_rate = BTC_rate['ask']
-    except Exception as mess:
-        logger.warning(style.FAIL + "%s" + style.END, mess)
-        logger.warning(style.FAIL + "Pair: %s" + style.END, pair)
+
+    if pair.split("/")[1] == 'BTC':
+        quote_price = await ccxt.gemini().fetchTicker('BTC/USD')
+    elif pair.split("/")[1] == 'ETH':
+        quote_price = await ccxt.gemini().fetchTicker('ETH/USD')
+    else:
+        logger.warning(style.FAIL +\
+                       "Quote currency other than BTC or ETH not covered"\
+                       + style.END)
         return(0)
 
-    # Min amount in base currency
-    min_arb_amount = min_arb_amount_BTC / BTC_rate
-    # min_arb_amount = max(min_arb_amount, 0.1) # Minimal trade value on cex
+    for id in 'bittrex', 'binance':
+        try:
+            # quote_rate: price of base currency in quote currency
+            # e.g. XRP = xxx BTC
+            quote_rate = await exchanges[id].fetchTicker(pair)
+            quote_rate = quote_rate['ask']
+        except:
+            pass
+        else:
+            break
+
+    try:
+        # Min amount in base currency
+        min_arb_amount = min_arb_amount_BTC / quote_rate
+        # min_arb_amount = max(min_arb_amount, 0.1) # Minimal trade value on cex
+    except:
+        logger.warning(style.FAIL + "Rate not defined at Bittrex or Binance"\
+                       + style.END)
+        return(0)
+
+
 
     ############################################################
     # Load orderbooks at all exchanges containing pair
@@ -247,7 +270,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
 
     # Arbitrage
     logger.info(style.BOLD + "***** arbitrage *****" + style.END)
-    logger.info("Amount in USD: %f", arb_amount * BTC_price['ask'] * best_bid)
+    logger.info("Amount in USD: %f", arb_amount * quote_price['ask'] * best_bid)
     # print("Amount in USD",\
     #       arb_amount * 15000 * best_bid) # TODO get BTC price in USD
     logger.info("Sell %s %s amount: %f %f",\
