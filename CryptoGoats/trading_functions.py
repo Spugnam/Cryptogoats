@@ -132,14 +132,12 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     # Price of BTC in USD
     BTC_price = await ccxt.gemini().fetchTicker('BTC/USD')
     # Price of base pair in BTC
-    for _ in range(3):
-        try:
-            BTC_rate = await exchanges['bittrex'].fetchTicker(pair.split("/")[0] + "/BTC")
-        except Exception as mess:
-            logger.warning(style.FAIL + "%s" + style.END, mess)
-            logger.warning(style.FAIL + "Pair: %s" + style.END, pair)
-        else:
-            break
+    try:
+        BTC_rate = await exchanges['bittrex'].fetchTicker(pair.split("/")[0] + "/BTC")
+    except Exception as mess:
+        logger.warning(style.FAIL + "%s" + style.END, mess)
+        logger.warning(style.FAIL + "Pair: %s" + style.END, pair)
+        return(0)
 
     # Min amount in base currency
     min_arb_amount = min_arb_amount_BTC / BTC_rate['ask']
