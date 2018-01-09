@@ -49,12 +49,13 @@ exchanges_filepath = './CryptoGoats/Config/Exchanges/' + exchanges_file + '.json
 # loggingMode = logging.INFO # logging.DEBUG, logging.INFO
 # inBTC = True # Display portfolio value in BTC
 
+################################################################################
+# Parameters
+################################################################################
+
 with open(strategy_filepath) as strategy_config:
     params = json.load(strategy_config)
 locals().update(params)
-
-#loggingMode
-# eval(loggingMode)
 
 ################################################################################
 # Logger initialization
@@ -91,10 +92,15 @@ rootLogger.info("Created log file: %s", fileName)
 
 
 ################################################################################
-# Pairs/ Exchanges Initialization
+# Initialization
 ################################################################################
 
-# create Pandas df
+# Display Strategy parameters
+rootLogger.info(style.HEADER + "Configuration" + style.END)
+for key, value in params.items():
+    rootLogger.info("%s %s", key, value)
+
+# Pandas df
 pd.set_option('display.float_format', lambda x: '%.10f' % x) # display 10 digits
 prices = pd.DataFrame(columns=['timestamp', 'exchange', 'pair',
                                'exchange_timestamp',
