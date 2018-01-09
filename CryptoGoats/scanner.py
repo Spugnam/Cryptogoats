@@ -25,22 +25,36 @@ import psycopg2
 import pandas as pd
 
 ################################################################################
-# Logger initialization
+# Parameters
 ################################################################################
 
-sellExchanges = [] # ['binance', 'bittrex', 'cex']
-buyExchanges = [] # ['binance', 'bittrex', 'cex']
-allowedExchanges = ['bittrex', 'cex', 'gdax', 'yobit'] #
-allowedPairs = ['LSK/BTC', 'VIA/BTC','STORJ/BTC','BCH/BTC','ETH/BTC','ZEC/BTC','XRP/BTC','ZEC/BTC', 'BTG/BTC','LTC/BTC','DASH/BTC']
-excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
-arbitrage = False
-minSpread = 1.5
-min_arb_amount_BTC = .004
-max_arb_amount_BTC = .07
-displayPortolio = True
-cycles = 200 # number of cycles through all available pairs
-loggingMode = logging.INFO # logging.DEBUG, logging.INFO
-inBTC = True # Display portfolio value in BTC
+# import arguments
+strategy_file = sys.argv[1] # strategy1
+strategy_filepath = './CryptoGoats/Config/Strategies/' + strategy_file + '.json'
+
+exchanges_file = sys.argv[2]
+exchanges_filepath = './CryptoGoats/Config/Exchanges/' + exchanges_file + '.json'
+
+# sellExchanges = [] # ['binance', 'bittrex', 'cex']
+# buyExchanges = [] # ['binance', 'bittrex', 'cex']
+# allowedExchanges = ['bittrex', 'cex', 'gdax', 'yobit'] #
+# allowedPairs = ['LSK/BTC', 'VIA/BTC','STORJ/BTC','BCH/BTC','ETH/BTC','ZEC/BTC','XRP/BTC','ZEC/BTC', 'BTG/BTC','LTC/BTC','DASH/BTC']
+# excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
+# arbitrage = False
+# minSpread = 1.5
+# min_arb_amount_BTC = .004
+# max_arb_amount_BTC = .07
+# displayPortolio = True
+# cycles = 200 # number of cycles through all available pairs
+# loggingMode = logging.INFO # logging.DEBUG, logging.INFO
+# inBTC = True # Display portfolio value in BTC
+
+with open(strategy_filepath) as strategy_config:
+    params = json.load(strategy_config)
+locals().update(params)
+
+#loggingMode
+# eval(loggingMode)
 
 ################################################################################
 # Logger initialization
@@ -64,7 +78,7 @@ rootLogger.addHandler(fileHandler)
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
-consoleHandler.setLevel(level=loggingMode)
+consoleHandler.setLevel(level=eval(loggingMode))
 rootLogger.addHandler(consoleHandler)
 
 # helpers module logger
@@ -89,7 +103,7 @@ prices = pd.DataFrame(columns=['timestamp', 'exchange', 'pair',
 
 # Create and connect to all configured exchanges
 rootLogger.info("...loading exchanges...")
-with open('./CryptoGoats/config_exchanges.json') as f:
+with open(exchanges_filepath) as f:
     config = json.load(f)
 
 if allowedExchanges == []:
