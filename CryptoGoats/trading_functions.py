@@ -25,21 +25,49 @@ class style:
 # OrderBook
 ################################################################################
 
-async def load_order_book(exchange, pair):
+async def load_order_book(exchange, pair, min_arb_amount):
     """ Add order_book to Pandas dataframe
+    Only look for bids/ asks with size > min_arb_amount
     pair = 'ETH/BTC'
     """
     orderbook = await exchange.fetch_order_book(pair)
 
+    # min_arb_amount = min_arb_amount_BTC / orderbook['bids'][0][0]
+    # logger.debug("min_arb_amount: %f", min_arb_amount)
+
+    # get best bid/ ask with size > min order amount
+    i = 0
+    while i < len(orderbook) and\
+        orderbook['bids'][i][1] < min_arb_amount:
+        logger.debug("min_arb_amount %f bid %f bid size %f, i: %d",\
+                     min_arb_amount,\
+                     orderbook['bids'][i][0], orderbook['bids'][i][1], i)
+        i +=1
+    high_bid, high_bid_size = orderbook['bids'][i][0], orderbook['bids'][i][1]
+    logger.debug("min_arb_amount %f bid %f bid size %f, i: %d",\
+                 min_arb_amount, high_bid, high_bid_size, i)
+    i = 0
+    while i < len(orderbook) and\
+        orderbook['asks'][i][1] < min_arb_amount:
+        logger.debug("min_arb_amount %f ask %f ask size %f, i: %d",\
+                     min_arb_amount,\
+                     orderbook['asks'][i][0], orderbook['asks'][i][1], i)
+        i +=1
+    low_ask, low_ask_size = orderbook['asks'][i][0], orderbook['asks'][i][1]
+    logger.debug("min_arb_amount %f ask %f ask size %f, i: %d",\
+                 min_arb_amount, low_ask, low_ask_size, i)
+
+
     row = [time.time(), exchange.id, pair, orderbook['timestamp'],\
      ';'.join(map(lambda x: "@".join([str(x[1]), str(x[0])]), orderbook['bids'][:5])),\
-     orderbook['bids'][0][0], # highest bid
-     orderbook['bids'][0][1], # highest bid size
+     high_bid,
+     high_bid_size,
     ';'.join(map(lambda x: "@".join([str(x[1]), str(x[0])]), orderbook['asks'][:5])),\
-    orderbook['asks'][0][0], # lowest ask
-    orderbook['asks'][0][1], # lowest ask size
+    low_ask,
+    low_ask_size,
     1000]
 
+    logger.debug("row %s", row)
     return(row)
 
 ################################################################################
@@ -52,29 +80,32 @@ def get_spread(pair, df, sellExchanges, buyExchanges):
     best_bid = df.loc[(df['pair'] == pair) &\
                       (df['exchange'].isin(sellExchanges)),\
                       ['high_bid']].unstack().max()
-    try:
-        assert isinstance(best_bid, numbers.Number)
-    except AssertionError:
-        logger.debug("%s", df.loc[df['pair']])
 
     try:
         bb_idx = df.loc[(df['pair'] == pair) &\
                       (df['exchange'].isin(sellExchanges)), ['high_bid']].idxmax()
-    except Exception:
-        logger.error("Catching %s", df.loc[df['pair'] == pair], exc_info=True)
-    best_bid_size = df.loc[bb_idx, 'high_bid_size'].values[0]
-    bb_exchange = df.loc[bb_idx, 'exchange'].values[0]
+        best_bid_size = df.loc[bb_idx, 'high_bid_size'].values[0]
+        bb_exchange = df.loc[bb_idx, 'exchange'].values[0]
+    except Exception as mess:
+        logger.warning(style.FAIL + "%s" + style.END, mess)
+
 
     best_ask = df.loc[(df['pair'] == pair) &\
                       (df['exchange'].isin(buyExchanges)),\
                       ['low_ask']].unstack().min()
+    try:
+        ba_idx = df.loc[(df['pair'] == pair) &\
+                          (df['exchange'].isin(buyExchanges)), ['low_ask']].idxmin()
+        best_ask_size = df.loc[ba_idx, 'low_ask_size'].values[0]
+        ba_exchange = df.loc[ba_idx, 'exchange'].values[0]
+    except Exception as mess:
+        logger.warning(style.FAIL + "%s" + style.END, mess)
+
     # try:
-    ba_idx = df.loc[(df['pair'] == pair) &\
-                      (df['exchange'].isin(buyExchanges)), ['low_ask']].idxmin()
-    # except Exception:
-    #     logger.error("%s", df.loc[df['pair'] == pair], exc_info=True)
-    best_ask_size = df.loc[ba_idx, 'low_ask_size'].values[0]
-    ba_exchange = df.loc[ba_idx, 'exchange'].values[0]
+    #     assert isinstance(best_bid, numbers.Number)
+    #     assert isinstance(best_ask, numbers.Number)
+    # except AssertionError as mess:
+    #     logger.warning(style.FAIL + "%s" + style.END, mess)
 
     spread = 100 * (best_bid - best_ask) / best_bid
 
@@ -93,14 +124,27 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
                          min_arb_amount_BTC=0.01, max_arb_amount_BTC=.01):
     """ 1) Calculate best spread for a pair at available exchanges
         2) Performs check and create arbitrage orders
-    Returns True if
-        -nothing was done
-        or
-        -arbitrage was attempted and portfolio is not down
-        (allowing for rounding)
+    Returns portfolio gain in BTC (0 if no trade attempted)
     """
-    # For USD calculations
+    ############################################################
+    # Initialization
+    ############################################################
+    # Price of BTC in USD
     BTC_price = await ccxt.gemini().fetchTicker('BTC/USD')
+    # Price of base pair in BTC
+    for _ in range(3):
+        try:
+            BTC_rate = await exchanges['bittrex'].fetchTicker(pair.split("/")[0] + "/BTC")
+        except Exception as mess:
+            logger.warning(style.FAIL + "%s" + style.END, mess)
+            logger.warning(style.FAIL + "Pair: %s" + style.END, pair)
+        else:
+            break
+
+    # Min amount in base currency
+    min_arb_amount = min_arb_amount_BTC / BTC_rate['ask']
+    # min_arb_amount = max(min_arb_amount, 0.1) # Minimal trade value on cex
+
     ############################################################
     # Load orderbooks at all exchanges containing pair
     ############################################################
@@ -108,7 +152,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     for id in exchangesBySymbol[pair]:
         try:
             logger.debug("Exchange: %s pair: %s", id, pair)
-            row = await load_order_book(exchanges[id], pair)
+            row = await load_order_book(exchanges[id], pair, min_arb_amount)
             df = df.append(pd.DataFrame([row], columns=df.columns)\
                             , ignore_index=True)
         except:
@@ -126,23 +170,18 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
             logger.info(style.BOLD + spreadString + style.END)
         else:
             logger.info(spreadString)
-
     except Exception as mess:
         logger.warning(style.FAIL + "%s" + style.END, mess)
-        logger.error("No spread calculated for %s at %s", pair, id, exc_info=True)
-        logger.debug("%s", df.loc[df['pair'] == pair], exc_info=True)
-        return(True) # nothing was done
+        logger.error("No spread calculated for %s at %s", pair, id)
+        return(0)
 
     ############################################################
     # Checks and Arbitrage
     ############################################################
 
     if not (arbitrage and spread > minSpread):
-        return(True) # nothing was done
+        return(0) # nothing was done
 
-    # Min amount in base currency
-    min_arb_amount = min_arb_amount_BTC / best_bid
-    # min_arb_amount = max(min_arb_amount, 0.1) # Minimal trade value on cex
     # Max amount in base currency
     max_arb_amount = max_arb_amount_BTC / best_bid
     max_arb_amount = max(max_arb_amount, min_arb_amount)
@@ -162,11 +201,11 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     if bb_balance is None:
         logger.warning(style.FAIL + "Balance couldn't be retrieved%s"\
                        + style.END, bb_exchange)
-        return(True)
+        return(0)
     if ba_balance is None:
         logger.warning(style.FAIL + "Balance couldn't be retrieved%s"\
                        + style.END, ba_balance)
-        return(True)
+        return(0)
 
     # Rounding below needed for gdax
     # Will also loosen the limit and trigger more executions
@@ -175,14 +214,14 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
 
     # Check wallet exist, reduce arb_amount to what funds allow
     try:
-        arb_amount = min(bb_balance[pair.split("/")[0]]['total'],\
-                         ba_balance[pair.split("/")[1]]['total']/buy_price,\
-                         arb_amount)
+        arb_amount = min(.995 * bb_balance[pair.split("/")[0]]['total'],\
+                         .995 * ba_balance[pair.split("/")[1]]['total']/buy_price,\
+                         arb_amount) # .995 to account for fees
         logger.debug("Arb amount after funds check %f", arb_amount)
         logger.debug("min_arb_amount %f", min_arb_amount)
     except Exception as mess:
         logger.warning(style.LIGHTBLUE + "No wallet defined %s" + style.END, mess)
-        return(True)
+        return(0)
 
     # Check orderbook size
     if not (min_arb_amount <= best_bid_size and\
@@ -190,7 +229,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
         logger.warning("  No order book size")
         logger.info("  amount to sell %f bid_size %f", min_arb_amount, best_bid_size)
         logger.info("  amount to buy %f ask_size %f", min_arb_amount, best_ask_size)
-        return(True)
+        return(0)
 
     # Check enough funds
     if not (arb_amount >= min_arb_amount):
@@ -201,7 +240,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
         logger.info("  buy balance %s %s %f", ba_exchange, pair.split("/")[1],
               ba_balance[pair.split("/")[1]]['total'])
         logger.info("  Minimum amount %f", min_arb_amount * buy_price)
-        return(True)
+        return(0)
 
 
     # Prevent "order too precise" error
@@ -244,7 +283,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     # Check portfolio went up
     portfolio_up = False
     portfolio_counter = 0
-    while portfolio_up == False and portfolio_counter < 2:
+    while portfolio_up == False and portfolio_counter < 50:
         # try getting balance up to 3 times
         for _ in range(3):
             try:
@@ -265,10 +304,18 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
             time.sleep(5)
         portfolio_counter += 1
 
+    # trade gain in BTC
+    trade_gain_BTC = base_diff * BTC_rate + quote_diff
+    trade_gain_USD = trade_gain_BTC * BTC_price['ask']
+
     logger.info("Trade gain (USD) %f, Percentage gain %f",\
-                quote_diff * BTC_price['ask'],\
-                100 * (quote_diff) / (arb_amount * best_bid))
-    return(portfolio_up)
+                trade_gain_USD,\
+                100 * (trade_gain_BTC) / (arb_amount * best_bid))
+
+    if portfolio_up:
+        return(1)
+    else:
+        return(-1)
 
 
 ################################################################################
@@ -285,7 +332,7 @@ def balance_check(base, quote, bb_balance, ba_balance,\
         ba_balance_after[quote]['total'] - ba_balance[quote]['total']
     logger.info("Portfolio change: %f %s", quote_diff, quote)
 
-    is_higher = base_diff>=-1e-5 and quote_diff>-1e-5
+    is_higher = base_diff>=-1e-5 and quote_diff>0
 
     return(is_higher, base_diff, quote_diff)
 

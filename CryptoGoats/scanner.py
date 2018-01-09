@@ -30,7 +30,7 @@ import pandas as pd
 
 sellExchanges = [] # ['binance', 'bittrex', 'cex']
 buyExchanges = [] # ['binance', 'bittrex', 'cex']
-allowedExchanges = [] # ['bittrex', 'cex', 'gdax', 'yobit'] #
+allowedExchanges = ['bittrex', 'cex', 'gdax', 'yobit'] # ['bittrex', 'cex', 'gdax', 'yobit'] #
 allowedPairs = ['LSK/BTC', 'VIA/BTC','STORJ/BTC','BCH/BTC','ETH/BTC','ZEC/BTC','XRP/BTC','ZEC/BTC', 'BTG/BTC','LTC/BTC','DASH/BTC']
 excludedCurrencies = ['EUR', 'USD', 'GBP', 'AUD', 'JPY', 'CNY']
 arbitrage = True
@@ -40,7 +40,7 @@ max_arb_amount_BTC = .07
 displayPortolio = True
 cycles = 15 # number of cycles through all available pairs
 loggingMode = logging.INFO # logging.DEBUG, logging.INFO
-inBTC = True # Display portfolio value in BTC
+inBTC = False # Display portfolio value in BTC
 
 ################################################################################
 # Logger initialization
@@ -191,23 +191,23 @@ def main():
     while True and counter <= cycles*len(arbitrableSymbols):
         try:
             pair = arbitrableSymbols[pair_counter]
-            portfolio_up = yield from pair_arbitrage(prices,\
-                                                     pair,\
-                                                     exchanges,\
-                                                     exchangesBySymbol,\
-                                                     sellExchanges,\
-                                                     buyExchanges,\
-                                                     arbitrage=arbitrage,\
-                                                     minSpread=minSpread,\
-                                                     min_arb_amount_BTC = min_arb_amount_BTC,\
-                                                     max_arb_amount_BTC = max_arb_amount_BTC
-                                                     )
-            if not portfolio_up:
-                rootLogger.info(" ")
-                rootLogger.debug("Interrupting")
+            result =\
+            yield from pair_arbitrage(prices,\
+                                     pair,\
+                                     exchanges,\
+                                     exchangesBySymbol,\
+                                     sellExchanges,\
+                                     buyExchanges,\
+                                     arbitrage=arbitrage,\
+                                     minSpread=minSpread,\
+                                     min_arb_amount_BTC = min_arb_amount_BTC,\
+                                     max_arb_amount_BTC = max_arb_amount_BTC)
+            if result == -1:
+                rootLogger.info(style.FAIL + "Interrupting" + style.END )
                 break
             counter += 1
-            pair_counter = (pair_counter + 1) % (len(arbitrableSymbols))
+            if result == 0: # stay on same pair if arbitrage was made
+                pair_counter = (pair_counter + 1) % (len(arbitrableSymbols))
         except KeyboardInterrupt:
             rootLogger.info("exiting program (print portfolio here)")
     newPortfolio = yield from portfolio_balance(exchanges,
