@@ -134,13 +134,14 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     # Price of base pair in BTC
     try:
         BTC_rate = await exchanges['bittrex'].fetchTicker(pair.split("/")[0] + "/BTC")
+        BTC_rate = BTC_rate['ask']
     except Exception as mess:
         logger.warning(style.FAIL + "%s" + style.END, mess)
         logger.warning(style.FAIL + "Pair: %s" + style.END, pair)
         return(0)
 
     # Min amount in base currency
-    min_arb_amount = min_arb_amount_BTC / BTC_rate['ask']
+    min_arb_amount = min_arb_amount_BTC / BTC_rate
     # min_arb_amount = max(min_arb_amount, 0.1) # Minimal trade value on cex
 
     ############################################################
@@ -371,7 +372,8 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
         logger.info(style.BOLD + "Exchange: %s" + style.END, id)
         for curr in Currencies:
             try:
-                logger.info("%s %f", curr, balance[curr]['total'])
+                if balance[curr]['total'] != 0:
+                    logger.info("%s %f", curr, balance[curr]['total'])
                 try:
                     portfolio[curr] += balance[curr]['total']
                 except KeyError:
@@ -383,7 +385,8 @@ async def portfolio_balance(exchanges, arbitrableSymbols, inBTC=False):
     logger.info(style.BOLD + "Currency totals" + style.END)
     try:
         for curr, total in portfolio.items():
-            logger.info("%s %f", curr, total)
+            if total != 0:
+                logger.info("%s %f", curr, total)
     except:
         pass
 
