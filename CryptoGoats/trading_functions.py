@@ -67,7 +67,7 @@ async def load_order_book(exchange, pair, min_arb_amount):
     low_ask_size,
     1000]
 
-    logger.debug("row %s", row)
+    # logger.debug("row %s", row)
     return(row)
 
 ################################################################################

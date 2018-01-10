@@ -75,7 +75,7 @@ logFormatter =\
 
 fileHandler = logging.FileHandler("{0}/{1}.log".format(logPath, fileName))
 fileHandler.setFormatter(logFormatter)
-fileHandler.setLevel(level=logging.DEBUG) 
+fileHandler.setLevel(level=logging.INFO) 
 rootLogger.addHandler(fileHandler)
 
 consoleHandler = logging.StreamHandler()
