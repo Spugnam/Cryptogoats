@@ -59,10 +59,10 @@ async def load_order_book(exchange, pair, min_arb_amount):
 
 
     row = [time.time(), exchange.id, pair, orderbook['timestamp'],\
-     ';'.join(map(lambda x: "@".join([str(x[1]), str(x[0])]), orderbook['bids'][:5])),\
+     ';'.join(map(lambda x: "@".join([str(x[1]), str(x[0])]), orderbook['bids'][:])),\
      high_bid,
      high_bid_size,
-    ';'.join(map(lambda x: "@".join([str(x[1]), str(x[0])]), orderbook['asks'][:5])),\
+    ';'.join(map(lambda x: "@".join([str(x[1]), str(x[0])]), orderbook['asks'][:])),\
     low_ask,
     low_ask_size,
     1000]
@@ -186,8 +186,8 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
             row = await load_order_book(exchanges[id], pair, min_arb_amount)
             df = df.append(pd.DataFrame([row], columns=df.columns)\
                             , ignore_index=True)
-        except:
-            pass # e.g. order book empty
+        except Exception as mess:
+            logger.warning(style.FAIL + "%s" + style.END, mess)
 
     # Find biggest spread for pair
     try:
