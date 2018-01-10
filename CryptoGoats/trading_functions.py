@@ -338,12 +338,20 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
         portfolio_counter += 1
 
     # trade gain in BTC
-    trade_gain_BTC = base_diff * quote_rate + quote_diff
-    trade_gain_USD = trade_gain_BTC * quote_price['ask']
+    try:
+        trade_gain_BTC = base_diff * quote_rate + quote_diff
+        trade_gain_USD = trade_gain_BTC * quote_price['ask']
 
-    logger.info("Trade gain (USD) %f, Percentage gain %f",\
-                trade_gain_USD,\
-                100 * (trade_gain_BTC) / (arb_amount * best_bid))
+        logger.info("Trade gain (USD) %f, Percentage gain %f",\
+                    trade_gain_USD,\
+                    100 * (trade_gain_BTC) / (arb_amount * best_bid))
+
+    except:
+        logger.warning(style.FAIL +\
+                       "Balances cannot be updated,\
+                       probably because order didn't go through. Exiting"\
+                        + style.END, mess)
+        return(-1)
 
     if portfolio_up:
         return(1)
