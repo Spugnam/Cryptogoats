@@ -99,7 +99,7 @@ rootLogger.info("Created log file: %s", fileName)
 # Display Strategy parameters
 rootLogger.info(style.HEADER + "Configuration" + style.END)
 for key, value in params.items():
-    if key == 'minSpread':
+    if key == 'minSpread' or key == 'arbitrage':
         rootLogger.info(style.HEADER + "%s %s" + style.END, key, value)
     else:
         rootLogger.info("%s %s", key, value)

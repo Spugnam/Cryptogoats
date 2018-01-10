@@ -220,6 +220,14 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     arb_amount = min(max_arb_amount, best_bid_size, best_ask_size)
     logger.debug("Arb amount after orderbook adjustment %f", arb_amount)
 
+    # Check orderbook size - Should never happen! TODO comment out
+    if not (min_arb_amount <= best_bid_size and\
+            min_arb_amount <= best_ask_size):
+        logger.warning("  No order book size")
+        logger.info("  amount to sell %f bid_size %f", min_arb_amount, best_bid_size)
+        logger.info("  amount to buy %f ask_size %f", min_arb_amount, best_ask_size)
+        return(0)
+
     # Check funds
     bb_balance = -1
     ba_balance = -1
@@ -254,14 +262,6 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
         logger.debug("min_arb_amount %f", min_arb_amount)
     except Exception as mess:
         logger.warning(style.LIGHTBLUE + "No wallet defined %s" + style.END, mess)
-        return(0)
-
-    # Check orderbook size
-    if not (min_arb_amount <= best_bid_size and\
-            min_arb_amount <= best_ask_size):
-        logger.warning("  No order book size")
-        logger.info("  amount to sell %f bid_size %f", min_arb_amount, best_bid_size)
-        logger.info("  amount to buy %f ask_size %f", min_arb_amount, best_ask_size)
         return(0)
 
     # Check enough funds
@@ -330,7 +330,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
             portfolio_up, base_diff, quote_diff =\
                 balance_check(pair.split("/")[0], pair.split("/")[1],\
                                  bb_balance, ba_balance,\
-                                 bb_balance_after, ba_balance_after)
+                                 bb_balance_after, ba_balance_after, arb_amount)
         except Exception as mess:
             logger.warning(style.FAIL + "%s" + style.END, mess)
         if not portfolio_up:
@@ -356,7 +356,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
 ################################################################################
 
 def balance_check(base, quote, bb_balance, ba_balance,\
-                         bb_balance_after, ba_balance_after):
+                         bb_balance_after, ba_balance_after, arb_amount):
 
     base_diff = bb_balance_after[base]['total'] - bb_balance[base]['total'] +\
         ba_balance_after[base]['total'] - ba_balance[base]['total']
@@ -365,7 +365,7 @@ def balance_check(base, quote, bb_balance, ba_balance,\
         ba_balance_after[quote]['total'] - ba_balance[quote]['total']
     logger.info("Portfolio change: %f %s", quote_diff, quote)
 
-    is_higher = base_diff>=-1e-5 and quote_diff>0
+    is_higher = base_diff>=-arb_amount/100 and quote_diff>0
 
     return(is_higher, base_diff, quote_diff)
 
