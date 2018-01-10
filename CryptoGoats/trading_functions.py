@@ -292,22 +292,33 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     # print("Buy", ba_exchange, pair, "amount", arb_amount, buy_price)
 
     # Launch orders
+    sell_success = 0
     for _ in range(3):
         try:
             sell_order = await exchanges[bb_exchange].\
         create_limit_sell_order(pair, arb_amount, sell_price)
             logger.info("Sell order: %s", sell_order)
         except Exception as mess:
+            logger.warning(style.FAIL + "Sell order failed" + style.END)
             logger.warning(style.FAIL + "%s" + style.END, mess)
         else:
+            sell_success = 1
             break
-    for _ in range(3):
+
+    # Terminate pair arbitrage if no sell order was created
+    if sell_success == 0:
+        logger.warning(style.FAIL + "No Sell order created, skipping" + style.END)
+        Return(0)
+
+    for _ in range(5):
         try:
             buy_order = await exchanges[ba_exchange].\
                 create_limit_buy_order(pair, arb_amount, buy_price)
             logger.info("Buy order: %s", buy_order)
         except Exception as mess:
+            logger.warning(style.FAIL + "Buy order failed" + style.END)
             logger.warning(style.FAIL + "%s" + style.END, mess)
+            time.sleep(3)
         else:
             break
 
