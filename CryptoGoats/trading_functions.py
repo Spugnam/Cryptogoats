@@ -37,7 +37,7 @@ async def load_order_book(exchange, pair, min_arb_amount):
 
     # get best bid/ ask with size > min order amount
     i = 0
-    while i < len(orderbook) and\
+    while i < len(orderbook['bids']) and\
         orderbook['bids'][i][1] < min_arb_amount:
         logger.debug("min_arb_amount %f bid %f bid size %f, i: %d",\
                      min_arb_amount,\
@@ -47,7 +47,7 @@ async def load_order_book(exchange, pair, min_arb_amount):
     logger.debug("min_arb_amount %f bid %f bid size %f, i: %d",\
                  min_arb_amount, high_bid, high_bid_size, i)
     i = 0
-    while i < len(orderbook) and\
+    while i < len(orderbook['asks']) and\
         orderbook['asks'][i][1] < min_arb_amount:
         logger.debug("min_arb_amount %f ask %f ask size %f, i: %d",\
                      min_arb_amount,\
