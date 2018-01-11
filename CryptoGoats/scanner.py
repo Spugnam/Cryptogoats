@@ -47,7 +47,7 @@ exchanges_filepath = './CryptoGoats/Config/Exchanges/' + exchanges_file + '.json
 # max_arb_amount_BTC = .07
 # displayPortolio = True
 # cycles = 200 # number of cycles through all available pairs
-# loggingMode = logging.INFO # logging.DEBUG, logging.INFO
+# loggingMode = logging.INFO # logging.DEBUG, logging.INFO for fileHandler
 # inBTC = True # Display portfolio value in BTC
 
 ################################################################################
@@ -75,12 +75,12 @@ logFormatter =\
 
 fileHandler = logging.FileHandler("{0}/{1}.log".format(logPath, fileName))
 fileHandler.setFormatter(logFormatter)
-fileHandler.setLevel(level=logging.DEBUG) 
+fileHandler.setLevel(level=eval(loggingMode))
 rootLogger.addHandler(fileHandler)
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
-consoleHandler.setLevel(level=eval(loggingMode))
+consoleHandler.setLevel(level=logging.DEBUG)
 rootLogger.addHandler(consoleHandler)
 
 # helpers module logger
