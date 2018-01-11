@@ -168,7 +168,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     try:
         # Min amount in base currency
         min_arb_amount = min_arb_amount_BTC / quote_rate
-        # min_arb_amount = max(min_arb_amount, 0.1) # Minimal trade value on cex
+        min_arb_amount = max(min_arb_amount, 0.1) # Minimal trade value on cex
     except:
         logger.warning(style.FAIL + "Rate not defined at Bittrex or Binance %s"\
                        + style.END, pair)
