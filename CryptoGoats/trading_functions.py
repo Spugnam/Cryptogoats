@@ -142,6 +142,8 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
                        + style.END, pair)
         return(0)
 
+    # Quote (typicall BTC or ETH) price in USD
+    quote_price = None
     for _ in range(3):
         try:
             quote_price =\
@@ -152,27 +154,35 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
             break
 
     if quote_price is None:
+        logger.warning(style.FAIL + "Quote price couldn't be determined %s"\
+                       + style.END, quote_pair)
         return(0)
 
+    # quote_rate: price of base currency in quote currency
+    # e.g. XRP = xxx ETH for XRP/ETH
+    quote_rate = None
     for id in 'bittrex', 'binance':
         try:
-            # quote_rate: price of base currency in quote currency
-            # e.g. XRP = xxx ETH for XRP/ETH
             quote_rate = await exchanges[id].fetchTicker(pair)
             quote_rate = quote_rate['ask']
-        except:
-            pass
+        except Exception as mess:
+            logger.warning(style.FAIL + "%s" + style.END, mess)
         else:
             break
 
-    try:
-        # Min amount in base currency
-        min_arb_amount = min_arb_amount_BTC / quote_rate
-        min_arb_amount = max(min_arb_amount, 0.1) # Minimal trade value on cex
-    except:
+    if quote_rate is None:
         logger.warning(style.FAIL + "Rate not defined at Bittrex or Binance %s"\
                        + style.END, pair)
         return(0)
+
+    # try:
+        # Min amount in base currency
+    min_arb_amount = min_arb_amount_BTC / quote_rate
+    min_arb_amount = max(min_arb_amount, 0.1) # Minimal trade value on cex
+    # except:
+    #     logger.warning(style.FAIL + "Rate not defined at Bittrex or Binance %s"\
+    #                    + style.END, pair)
+    #     return(0)
 
 
 
@@ -220,7 +230,7 @@ async def pair_arbitrage(df, pair, exchanges, exchangesBySymbol,\
     arb_amount = min(max_arb_amount, best_bid_size, best_ask_size)
     logger.debug("Arb amount after orderbook adjustment %f", arb_amount)
 
-    # Check orderbook size - Should never happen! TODO comment out
+    # Check orderbook size - Should almost never happen
     if not (min_arb_amount <= best_bid_size and\
             min_arb_amount <= best_ask_size):
         logger.warning("  No order book size")

@@ -80,7 +80,7 @@ rootLogger.addHandler(fileHandler)
 
 consoleHandler = logging.StreamHandler()
 consoleHandler.setFormatter(logFormatter)
-consoleHandler.setLevel(level=logging.DEBUG)
+consoleHandler.setLevel(level=logging.INFO)
 rootLogger.addHandler(consoleHandler)
 
 # helpers module logger
